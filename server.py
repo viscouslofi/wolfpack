@@ -1521,7 +1521,12 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/":
             return self._file(HERE / "index.html", "text/html; charset=utf-8")
         if path == "/logo.png":
-            return self._file(HERE / "logo.png", "image/png")
+            lp = HERE / "logo.png"
+            if not lp.exists():
+                self.send_response(404)
+                self.end_headers()
+                return
+            return self._file(lp, "image/png")
         if path == "/api/agents":
             reg = harness.load_registry()
             settings = harness.load_settings()
