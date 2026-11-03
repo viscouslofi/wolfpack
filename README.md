@@ -1,5 +1,11 @@
 # 🐺 WolfPack
 
+[![Download v1.1.0](https://img.shields.io/badge/download-wolfpack--1.1.0.zip-success)](https://github.com/viscouslofi/wolfpack/releases/download/v1.1.0/wolfpack-1.1.0.zip)
+[![GitHub stars](https://img.shields.io/github/stars/viscouslofi/wolfpack?style=flat)](https://github.com/viscouslofi/wolfpack/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/viscouslofi/wolfpack?style=flat)](https://github.com/viscouslofi/wolfpack/forks)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue)]()
+
 **Pull every free AI model on the internet into one place — and make them work as a team.**
 
 WolfPack is a local-first multi-agent harness. It pools free cloud tiers
