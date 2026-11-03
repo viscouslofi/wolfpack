@@ -1,0 +1,1685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WolfPack — Agent Harness</title>
+<link rel="icon" type="image/png" href="/logo.png">
+<style>
+:root{
+  --bg:#0d1117; --panel:#161b22; --panel2:#1c2330; --border:#2b3342;
+  --text:#e6edf3; --dim:#8b949e; --accent:#4f9cf9; --accent2:#7c5cfc;
+  --ok:#3fb950; --warn:#d29922; --err:#f85149; --run:#4f9cf9;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:14px/1.5 -apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+header{display:flex;align-items:center;gap:10px;padding:10px 18px;border-bottom:1px solid var(--border);background:var(--panel)}
+header h1{font-size:16px;font-weight:600;letter-spacing:.3px}
+header .sub{color:var(--dim);font-size:12px}
+#app{flex:1;display:flex;min-height:0}
+/* ---------- runs sidebar ---------- */
+#side{width:280px;min-width:280px;border-right:1px solid var(--border);display:flex;flex-direction:column;background:var(--panel)}
+#history{flex:1;overflow-y:auto;padding:10px}
+#history h3{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);padding:6px 6px 8px}
+.hist-item{padding:9px 11px;border-radius:8px;cursor:pointer;margin-bottom:4px;border:1px solid transparent;border-left:3px solid transparent;position:relative}
+.hist-item:hover{background:var(--panel2)}
+.hist-item.sel{background:var(--panel2);border-color:var(--border)}
+.hist-item.active{border-left-color:var(--warn);background:rgba(210,153,34,.07)}
+.hist-item.active .t{color:var(--warn)}
+.hist-item .del{position:absolute;top:6px;right:7px;display:none;color:var(--dim);font-size:12px;padding:1px 5px;border-radius:5px}
+.hist-item:hover .del{display:block}
+.hist-item .del:hover{color:var(--err);background:var(--bg)}
+.hist-item .t{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hist-item .m{font-size:11px;color:var(--dim);display:flex;gap:8px;margin-top:2px}
+.hist-item.child{margin-left:14px;border-left:1px solid var(--border);border-radius:0 8px 8px 0;padding:6px 9px}
+.hist-item.child .t{font-size:12px}
+.pulse{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--warn);animation:pl 1.2s ease-in-out infinite}
+@keyframes pl{0%,100%{opacity:1}50%{opacity:.25}}
+/* ---------- main ---------- */
+#main{flex:1;overflow-y:auto;padding:22px 26px}
+#empty{color:var(--dim);text-align:center;margin-top:16vh;font-size:15px}
+#empty img{width:120px;margin-bottom:16px;opacity:.9}
+/* phase pipeline */
+#pipeline{display:flex;align-items:center;gap:0;margin-bottom:20px;flex-wrap:wrap}
+.step{display:flex;align-items:center;gap:7px;padding:6px 14px;border:1px solid var(--border);background:var(--panel);font-size:12.5px;color:var(--dim)}
+.step:first-child{border-radius:8px 0 0 8px}.step:last-child{border-radius:0 8px 8px 0}
+.step.active{color:var(--accent);border-color:var(--accent)}
+.step.done{color:var(--ok)}
+.step.failed{color:var(--err)}
+.connector{width:18px;height:1px;background:var(--border)}
+/* subtask cards */
+#cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px;margin-bottom:22px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+.card .head{display:flex;align-items:center;gap:9px;margin-bottom:6px}
+.badge{font-size:11px;font-weight:700;padding:2px 9px;border-radius:5px;letter-spacing:.4px}
+.badge.codex{background:rgba(63,185,128,.15);color:#3fb980}
+.badge.kimi{background:rgba(92,124,250,.18);color:#8ba4ff}
+.badge.opencode{background:rgba(210,153,34,.15);color:var(--warn)}
+.badge.echo{background:rgba(139,148,158,.15);color:var(--dim)}
+.card .title{font-weight:600;font-size:13.5px;flex:1}
+.st{font-size:11.5px;padding:2px 9px;border-radius:12px}
+.st.queued{color:var(--dim);border:1px solid var(--border)}
+.st.running{color:var(--run);border:1px solid var(--run)}
+.st.done{color:var(--ok);border:1px solid var(--ok)}
+.st.failed{color:var(--err);border:1px solid var(--err)}
+.st.stopped{color:var(--warn);border:1px solid var(--warn)}
+.st.waiting{color:var(--warn);border:1px solid var(--warn);animation:pl 1.6s ease-in-out infinite}
+.stopbtn{background:none;border:1px solid var(--warn);color:var(--warn);border-radius:6px;
+  font-size:11.5px;padding:3px 10px;cursor:pointer;margin-left:10px}
+.stopbtn:hover{background:rgba(255,176,32,.12)}
+.spin{display:inline-block;width:10px;height:10px;border:2px solid var(--run);border-top-color:transparent;border-radius:50%;animation:sp 0.8s linear infinite;vertical-align:-1px;margin-right:4px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.meta{font-size:11.5px;color:var(--dim);margin:4px 0 8px}
+.prev{background:var(--bg);border:1px solid var(--border);border-radius:7px;padding:9px 11px;font:12px/1.45 ui-monospace,Consolas,monospace;color:#b9c2cc;white-space:pre-wrap;word-break:break-word;max-height:170px;overflow-y:auto;display:none}
+.prev.show{display:block}
+.tgl{font-size:11.5px;color:var(--accent);cursor:pointer;user-select:none}
+/* live team view — one panel per agent, thoughts streaming in */
+#team{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:12px;margin:4px 0 18px}
+.tp{background:var(--panel);border:1px solid var(--border);border-radius:10px;display:flex;flex-direction:column;overflow:hidden}
+.tp.live{border-color:var(--run);box-shadow:0 0 14px rgba(79,156,249,.12)}
+.tp .th{display:flex;align-items:center;gap:8px;padding:7px 12px;border-bottom:1px solid var(--border);font-size:12px;background:var(--panel2)}
+.tp .th .ttl{font-weight:600;font-size:12px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tp .tb{padding:9px 12px;font:11.5px/1.5 ui-monospace,Consolas,monospace;color:#aeb9c4;white-space:pre-wrap;word-break:break-word;height:200px;overflow-y:auto;background:var(--bg)}
+.tp .tb .dim{color:var(--dim)}
+.tp .tmeta2{font-size:10.5px;color:var(--dim);padding:3px 12px;border-bottom:1px solid var(--border);background:var(--panel2)}
+/* result + conversation thread */
+h2.sec{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin:18px 0 10px}
+#thread{max-width:980px}
+.turn{margin-bottom:20px}
+.tuser{background:rgba(79,156,249,.08);border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:10px;padding:10px 14px;margin-bottom:8px}
+.tmeta{font-size:11px;color:var(--dim);margin-bottom:3px}
+.ttask{font-size:13.5px;white-space:pre-wrap}
+.tfiles{font-size:11.5px;color:var(--dim)}
+.tans{background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:12px 16px}
+.turn.sel .tans{border-color:var(--accent)}
+.tstatus{font-size:11.5px;padding:1px 9px;border-radius:12px;display:inline-block;margin-bottom:8px}
+.tstatus.done{color:var(--ok);border:1px solid var(--ok)}
+.tstatus.failed{color:var(--err);border:1px solid var(--err)}
+.tstatus.interrupted{color:var(--warn);border:1px solid var(--warn)}
+.tstatus.live{color:var(--run);border:1px solid var(--run)}
+.res{margin:4px 0 8px}
+.res h1,.res h2,.res h3{margin:14px 0 8px;font-weight:600}
+.res h1{font-size:19px}.res h2{font-size:16px}.res h3{font-size:14px}
+.res p{margin:8px 0}
+.res code{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font:12.5px ui-monospace,Consolas,monospace;color:#79c0ff}
+.res pre{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;overflow-x:auto;margin:10px 0}
+.res pre code{background:none;border:none;padding:0}
+.res ul,.res ol{margin:8px 0 8px 22px}
+.res li{margin:3px 0}
+.res a{color:var(--accent)}
+.res blockquote{border-left:3px solid var(--border);padding-left:12px;color:var(--dim);margin:8px 0}
+.err-banner{background:rgba(248,81,73,.12);border:1px solid var(--err);color:var(--err);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px}
+.dl-btn{float:right;font-size:11.5px;color:var(--accent);cursor:pointer;border:1px solid var(--border);border-radius:6px;padding:2px 10px;background:none;font-family:inherit;margin-left:6px}
+.dl-btn:hover{border-color:var(--accent)}
+/* ---------- bottom bar ---------- */
+#bottombar{border-top:1px solid var(--border);background:var(--panel);display:flex;align-items:flex-end;gap:14px;padding:12px 18px}
+#bbLeft{display:flex;gap:8px;padding-bottom:2px}
+.bbtn{background:var(--panel2);border:1px solid var(--border);border-radius:8px;color:var(--dim);font-size:16px;padding:8px 12px;cursor:pointer;position:relative}
+.bbtn:hover{color:var(--text);border-color:var(--accent)}
+.bbtn .notif{position:absolute;top:-4px;right:-4px;min-width:9px;height:9px;border-radius:50%;background:var(--err);display:none;box-shadow:0 0 6px var(--err);animation:pl 1.6s ease-in-out infinite}
+/* ---------- orchestrator label ---------- */
+.orchwrap{display:flex;flex-direction:column;gap:2px}
+.orchwrap span{font-size:9.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.7px;padding-left:2px}
+/* ---------- file attachments ---------- */
+#fileChips{display:none;gap:6px;flex-wrap:wrap;margin-top:8px}
+#fileChips.has{display:flex}
+.fchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--accent);border-radius:16px;padding:3px 6px 3px 10px;font-size:11.5px;color:var(--accent);background:rgba(79,156,249,.08)}
+.fchip .x{cursor:pointer;color:var(--dim);padding:0 3px;border-radius:50%}
+.fchip .x:hover{color:var(--err)}
+#dropOverlay{position:fixed;inset:0;z-index:60;background:rgba(13,17,23,.82);display:none;align-items:center;justify-content:center;pointer-events:none}
+#dropOverlay .dz{border:3px dashed var(--accent);border-radius:18px;padding:48px 72px;font-size:18px;color:var(--accent);background:rgba(79,156,249,.06);text-align:center}
+#runFiles{font-size:11.5px;color:var(--dim);margin-bottom:12px}
+#runFiles b{color:var(--accent);font-weight:600}
+.runbar{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:12px}
+.runbar #runFiles{margin-bottom:0}
+.rlinks-below{display:flex;gap:8px;margin:-18px 0 30px}
+.rlink{font-size:11.5px;color:var(--accent);cursor:pointer;border:1px solid var(--border);border-radius:6px;padding:2px 10px}
+.rlink:hover{border-color:var(--accent)}
+.rlink.on{border-color:var(--accent);color:var(--accent);background:rgba(79,156,249,.12)}
+.steerrow{display:flex;gap:6px;margin-top:10px}
+.steerrow input{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:6px 10px;font:inherit;font-size:12px}
+.steerrow input:focus{outline:none;border-color:var(--accent)}
+.steerrow button{background:var(--panel2);border:1px solid var(--border);border-radius:8px;color:var(--dim);font:inherit;font-size:12px;padding:4px 12px;cursor:pointer}
+.steerrow button:hover{color:var(--text);border-color:var(--accent)}
+#presets{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+#presets:empty{display:none}
+.pchip .px{margin-left:6px;color:var(--dim)}
+.pchip .px:hover{color:var(--err)}
+.pstep{display:flex;gap:6px;align-items:center;margin-top:6px}
+.pstep .parr{color:var(--dim);font-size:11px;white-space:nowrap}
+.pstep input{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:6px 10px;font:inherit;font-size:12px}
+.pstep input:focus{outline:none;border-color:var(--accent)}
+.pstep .x{cursor:pointer;color:var(--dim)}
+.pstep .x:hover{color:var(--err)}
+.scores{margin:2px 0 10px;border:1px solid var(--border);border-radius:8px;padding:8px 12px;background:var(--panel)}
+.scores .srow2{display:flex;align-items:center;gap:8px;font-size:12px;margin:4px 0}
+.scores .snm{min-width:110px;color:var(--text)}
+.scores .sbar{flex:1;height:6px;background:var(--panel2);border-radius:3px;overflow:hidden}
+.scores .sbar span{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2))}
+.scores b{color:var(--accent);min-width:16px;text-align:right}
+.plink{color:var(--accent);cursor:pointer;text-decoration:underline dotted;word-break:break-all}
+#composer{flex:1;max-width:820px;margin:0 auto}
+.composer-top{display:flex;gap:8px;align-items:stretch}
+#composer textarea{flex:1;height:52px;resize:none;background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px 11px;font:inherit;font-size:13px}
+#composer textarea:focus{outline:none;border-color:var(--accent)}
+.cbtns{display:flex;flex-direction:column;gap:5px}
+.cbtns #runBtn{flex:1;padding:4px 14px;border:none;border-radius:8px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font:inherit;font-weight:600;font-size:12px;cursor:pointer;white-space:nowrap}
+.cbtns #runBtn:hover{filter:brightness(1.12)}
+#attachBtn{background:var(--panel2);border:1px solid var(--border);border-radius:8px;color:var(--dim);font-size:13px;padding:3px 10px;cursor:pointer}
+#attachBtn:hover{color:var(--text);border-color:var(--accent)}
+#contBar{margin-top:6px;font-size:11.5px;color:var(--warn)}
+.goalinput{width:100%;margin-top:6px;background:var(--panel);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:6px 10px;font-size:12px;font-family:inherit;box-sizing:border-box}
+.goalinput::placeholder{color:var(--dim)}
+.goalinput:focus{outline:none;border-color:var(--accent)}
+.quiet-badge{color:var(--warn);font-size:11px}
+.quiet-badge.crit{color:var(--err)}
+.score-tbl{width:100%;border-collapse:collapse;font-size:11.5px}
+.score-tbl th{text-align:left;color:var(--dim);font-weight:400;padding:3px 6px 3px 0;border-bottom:1px solid var(--border)}
+.score-tbl td{padding:3px 6px 3px 0;border-bottom:1px solid var(--border);color:var(--text)}
+.verify-badge{font-size:12px;margin:6px 0;padding:6px 10px;border-radius:8px;border:1px solid var(--border)}
+.verify-badge.pass{color:var(--ok);border-color:var(--ok)}
+.verify-badge.concerns{color:var(--warn);border-color:var(--warn)}
+#contBar .x{cursor:pointer;color:var(--dim);margin-left:8px}
+#contBar .x:hover{color:var(--err)}
+.crow{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}
+select{background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font:inherit;font-size:12px}
+.agents-picks{display:flex;gap:6px;flex-wrap:wrap;flex:1;max-height:96px;overflow-y:auto;padding:2px}
+.chip{border:1px solid var(--border);border-radius:20px;padding:3px 11px;font-size:12px;cursor:pointer;color:var(--dim);user-select:none;transition:all .15s}
+.chip.on{border-color:var(--accent);color:var(--accent);background:rgba(79,156,249,.1)}
+.chip:not(.on){opacity:.55}
+.chip .dot{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px;vertical-align:1px}
+.dot.ok{background:var(--ok)}.dot.warn{background:var(--warn)}.dot.err{background:var(--err)}
+#runBtn{white-space:nowrap}
+.hint{font-size:10.5px;color:var(--dim)}
+/* ---------- side panels (settings / schedules / mailbox) ---------- */
+.panel{position:fixed;top:0;right:0;width:400px;max-width:94vw;height:100vh;background:var(--panel);border-left:1px solid var(--border);z-index:40;transform:translateX(100%);transition:transform .25s;display:flex;flex-direction:column;box-shadow:-12px 0 40px rgba(0,0,0,.4)}
+.panel.open{transform:translateX(0)}
+.panel .shead{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--border)}
+.panel .shead b{font-size:15px}
+.sclose{cursor:pointer;color:var(--dim);font-size:15px;padding:2px 6px;border-radius:5px}
+.sclose:hover{background:var(--panel2);color:var(--text)}
+.panel .sbody{flex:1;overflow-y:auto;padding:16px 20px}
+.panel h4{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);margin:18px 0 10px}
+.panel h4:first-child{margin-top:0}
+details.sec{margin:0 0 4px;border:1px solid var(--border);border-radius:9px;background:var(--panel2);overflow:hidden}
+details.sec>summary{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--dim);padding:10px 14px;cursor:pointer;list-style:none;display:flex;align-items:center;user-select:none}
+details.sec>summary::-webkit-details-marker{display:none}
+details.sec>summary::before{content:"▸";margin-right:8px;font-size:10px;transition:transform .15s;color:var(--dim)}
+details.sec[open]>summary::before{transform:rotate(90deg)}
+details.sec[open]>summary{border-bottom:1px solid var(--border);color:var(--text)}
+details.sec>:not(summary){margin-left:14px;margin-right:14px}
+details.sec>:last-child{margin-bottom:12px}
+details.sec .srow:first-of-type{margin-top:10px}
+.panel .foot{padding:12px 20px;border-top:1px solid var(--border);font-size:11.5px;color:var(--dim)}
+.srow{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:13px}
+.srow label{flex:1;color:var(--text)}
+.srow select,.srow input[type=number]{background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:5px 8px;font:inherit;font-size:12px;max-width:190px}
+.sagent{display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:7px;background:var(--bg)}
+.sagent .nm{font-size:12.5px;font-weight:600;min-width:105px}
+.sagent select{flex:1;min-width:0}
+.sagent select.tier{flex:0 0 76px;font-size:11px;color:var(--dim)}
+.sprov{display:flex;align-items:center;gap:9px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:7px;font-size:12.5px;flex-wrap:wrap}
+.sprov .nm{flex:1;font-weight:600}
+.sprov a{font-size:11.5px;color:var(--accent)}
+.sprov input{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:5px 8px;font:11.5px ui-monospace,Consolas,monospace}
+/* schedules */
+.sched-item{border:1px solid var(--border);border-radius:9px;padding:11px 13px;margin-bottom:9px;background:var(--bg)}
+.sched-item.off{opacity:.55}
+.sched-item .sname{font-weight:600;font-size:13px}
+.sched-item .swhen{font-size:11.5px;color:var(--accent);margin:2px 0}
+.sched-item .smeta{font-size:11px;color:var(--dim);margin-bottom:7px}
+.sact{display:flex;gap:6px}
+.sbtn{font-size:11px;padding:3px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);cursor:pointer;font-family:inherit}
+.sbtn:hover{border-color:var(--accent)}
+.sbtn.danger:hover{border-color:var(--err);color:var(--err)}
+.sched-form{border:1px dashed var(--border);border-radius:9px;padding:12px 14px;margin-top:6px}
+.sched-form label{font-size:11.5px;color:var(--dim);display:block;margin:8px 0 3px}
+.sched-form input[type=text],.sched-form textarea,.sched-form input[type=time]{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:7px 9px;font:inherit;font-size:12.5px}
+.sched-form textarea{height:60px;resize:vertical}
+.outrow{display:flex;gap:6px}
+.outrow input{flex:1}
+.dayrow{display:flex;gap:5px;margin-top:2px}
+.day{flex:1;text-align:center;font-size:11px;padding:4px 0;border:1px solid var(--border);border-radius:6px;color:var(--dim);cursor:pointer;user-select:none}
+.day.on{border-color:var(--accent);color:var(--accent);background:rgba(79,156,249,.1)}
+.mini-chips{display:flex;gap:5px;flex-wrap:wrap}
+#schedCreate{width:100%;margin-top:10px;padding:8px;border:none;border-radius:7px;background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;font:inherit;font-weight:600;font-size:12.5px;cursor:pointer}
+.tznote{font-size:11px;color:var(--dim)}
+/* mailbox panel */
+.msg{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:9px 13px;margin-bottom:8px}
+.msg .mh{font-size:11.5px;color:var(--dim);margin-bottom:3px}
+.msg .mh b{color:var(--accent)}
+.msg .mt{font-size:13px;white-space:pre-wrap}
+.msg.question{border-color:var(--warn);background:rgba(210,153,34,.08)}
+.msg.question .mh b{color:var(--warn)}
+.mbx-empty{color:var(--dim);font-size:12.5px}
+/* ---------- link modal ---------- */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;z-index:50;backdrop-filter:blur(3px)}
+.modal{width:440px;max-width:92vw;background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:20px 22px;box-shadow:0 12px 40px rgba(0,0,0,.5)}
+.modal .mhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.modal .mhead b{font-size:15px}
+#mClose{cursor:pointer;color:var(--dim);font-size:15px;padding:2px 6px;border-radius:5px}
+#mClose:hover{background:var(--panel2);color:var(--text)}
+.modal .step-line{font-size:13px;margin:8px 0}
+.modal .step-line b{color:var(--accent)}
+.modal a{color:var(--accent)}
+.modal code{background:var(--bg);border:1px solid var(--border);border-radius:4px;padding:1px 6px;font:12px ui-monospace,Consolas,monospace;color:#79c0ff}
+.modal input[type=text]{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:8px 10px;font:12.5px ui-monospace,Consolas,monospace;margin:6px 0}
+.modal input:focus{outline:none;border-color:var(--accent)}
+.mbtnrow{display:flex;gap:8px;margin-top:10px}
+.mbtn{flex:1;padding:8px;border:none;border-radius:7px;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+.mbtn.save{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
+.mbtn.test{background:var(--panel2);color:var(--text);border:1px solid var(--border)}
+.mbtn:disabled{opacity:.5;cursor:default}
+#mResult{margin-top:10px;font-size:12px;border-radius:7px;padding:8px 10px;display:none;white-space:pre-wrap;word-break:break-word}
+#mResult.ok{display:block;background:rgba(63,185,80,.12);border:1px solid var(--ok);color:var(--ok)}
+#mResult.err{display:block;background:rgba(248,81,73,.1);border:1px solid var(--err);color:var(--err)}
+.mnote{font-size:11.5px;color:var(--dim);margin-top:12px}
+.onb-sec{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--dim);margin:14px 0 2px}
+.onb-row{border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin:8px 0}
+.onb-row.done{opacity:.55;border-color:var(--ok)}
+.onb-row .t{font-weight:600;font-size:13px;margin-bottom:2px}
+.onb-row .d{font-size:12px;color:var(--dim);margin-bottom:8px}
+.onb-row .acts{display:flex;gap:6px;flex-wrap:wrap}
+.onb-row .mbtn{flex:0 1 auto;padding:6px 12px;font-size:12px}
+.onb-row input[type=text]{margin:0 0 8px}
+#onbList{max-height:52vh;overflow-y:auto;padding-right:4px}
+#onbSay{font-size:12px;margin-top:8px;min-height:15px}
+</style>
+</head>
+<body>
+<header>
+  <img src="/logo.png" alt="WolfPack logo" style="width:32px;height:32px">
+  <h1>WolfPack</h1>
+  <span class="sub">multi-agent orchestration workspace<span id="verTag"></span></span>
+</header>
+<div id="app">
+  <div id="side">
+    <div id="history"><h3>Runs</h3><div id="histList"></div></div>
+  </div>
+  <div id="main">
+    <div id="empty"><img src="/logo.png" alt=""><br>Select a run on the left, or add a task below.</div>
+    <div id="detail" style="display:none">
+      <div id="thread"></div>
+      <div class="runbar"><span></span><button class="sbtn" id="contBtn" title="Add a follow-up that builds on this conversation — task, result and files carry over">↻ continue this task</button></div>
+    </div>
+  </div>
+</div>
+<div id="bottombar">
+  <div id="bbLeft">
+    <button class="bbtn" id="gearBtn" title="Settings">⚙</button>
+    <button class="bbtn" id="clockBtn" title="Scheduled tasks">🕒</button>
+    <button class="bbtn" id="mailBtn" title="Mailbox — agent messages &amp; questions">✉<span class="notif" id="mailNotif"></span></button>
+  </div>
+  <div id="composer">
+    <div id="presets"></div>
+    <div class="composer-top">
+      <textarea id="task" placeholder="Describe a task for the agents… (Ctrl+Enter to add, drop files for context)"></textarea>
+      <div class="cbtns">
+        <button id="runBtn" title="Add task (Ctrl+Enter)">+ Add</button>
+        <button id="attachBtn" title="Attach files as context">📎</button>
+      </div>
+    </div>
+    <input type="file" id="fileInput" multiple style="display:none">
+    <div id="fileChips"></div>
+    <div id="contBar" style="display:none"></div>
+    <input type="text" id="goal" class="goalinput" placeholder="Goal — why this task matters (optional; agents see it as context)">
+    <div id="pipeSteps"></div>
+    <div class="crow">
+      <div class="orchwrap"><span>Orchestrator</span><select id="orch" title="Orchestrator — plans and synthesizes the run"></select></div>
+      <div class="orchwrap"><span>Mode</span><select id="pattern" title="standard: the orchestrator plans and splits work · council: every agent answers independently, the orchestrator merges the best · best-of-n: parallel drafts, the orchestrator picks the winner · project: the lead agent builds, tests and fixes a real project on disk, delegating side work">
+        <option value="standard">standard</option>
+        <option value="council">council</option>
+        <option value="best-of-n">best-of-n</option>
+        <option value="project">project (big builds)</option>
+      </select></div>
+      <div class="agents-picks" id="picks"></div>
+      <button class="sbtn" id="pipeAdd" title="Chain a follow-up task — it starts automatically when this one finishes, with the result carried over">＋ follow-up</button>
+      <button class="sbtn" id="presetSave" title="Save this task + mode + agent line-up as a one-click preset">☆ preset</button>
+    </div>
+  </div>
+</div>
+<div id="dropOverlay"><div class="dz">📎 Drop files here<br><span style="font-size:12.5px;color:var(--dim)">agents get them as context for the next task</span></div></div>
+
+<div class="panel" id="settings">
+  <div class="shead"><b>Settings</b><span class="sclose" id="sClose">✕</span></div>
+  <div class="sbody">
+    <details class="sec" data-sec="general" open><summary>General</summary>
+    <div class="srow"><label>Default orchestrator</label><select id="sOrch"></select></div>
+    <div class="srow"><label>Max parallel agents</label><input type="number" id="sPar" min="1" max="10" style="width:70px"></div>
+    <div class="srow"><label>Budget guard — pause a run after this many agent calls (0 = off)</label><input type="number" id="sBudget" min="0" max="1000" step="5" style="width:70px"></div>
+    <div class="srow"><label>Per-agent cap — pause when ONE agent passes this many calls in a run (0 = off)</label><input type="number" id="sCap" min="0" max="200" step="5" style="width:70px"></div>
+    <div class="srow"><label>Final review pass — a different agent critiques the result</label><input type="checkbox" id="sReview" style="accent-color:var(--accent)"></div>
+    <div class="srow"><label>Verification pass — project mode: a second agent checks "done" against the files on disk</label><input type="checkbox" id="sVerify" style="accent-color:var(--accent)"></div>
+    <div class="srow"><label>Team memory — agents remember durable facts between runs (<a class="plink" id="memOpen">view folder</a>)</label><input type="checkbox" id="sMemory" style="accent-color:var(--accent)"></div>
+    <div class="srow" id="sSandboxRow" style="display:none"><label>Sandbox CLI agents with Docker (experimental)</label><input type="checkbox" id="sSandbox" style="accent-color:var(--accent)"></div>
+    <div class="srow"><label style="color:var(--dim)">Lifetime token usage</label><span id="sUsage" style="font-size:12px;color:var(--dim)">—</span></div>
+    <div class="srow"><label>Setup wizard — link new agents, models and logins</label><button class="sbtn" id="onbOpen">open</button></div>
+    <div class="srow"><label>Share / back up this setup — one zip with agents, schedules, skills &amp; memory (keys are never included)</label>
+      <span style="display:flex;gap:6px"><button class="sbtn" id="packExport">export</button><button class="sbtn" id="packImport">import</button></span></div>
+    <input type="file" id="packFile" accept=".zip" style="display:none">
+    <div class="srow"><label>Runs archive — <span id="diskInfo" style="color:var(--dim)">…</span>. Delete finished runs older than</label>
+      <span style="display:flex;gap:6px;align-items:center"><input type="number" id="pruneDays" value="30" min="1" style="width:56px"> days
+      <button class="sbtn" id="pruneBtn">prune</button></span></div>
+    </details>
+    <details class="sec" data-sec="agents" open><summary>Agents &amp; models</summary>
+    <div id="sAgents"></div>
+    </details>
+    <details class="sec" data-sec="providers"><summary>Providers</summary>
+    <div id="sProvs"></div>
+    </details>
+    <details class="sec" data-sec="skills"><summary>Skills</summary>
+    <div id="sSkills"></div>
+    <div class="outrow" style="margin-top:6px">
+      <input type="text" id="skillUrl" placeholder="paste a SKILL.md link (GitHub blob or raw)…">
+      <button class="sbtn" id="skillDl">download</button>
+      <button class="sbtn" id="skillScan">rescan</button>
+    </div>
+    </details>
+    <details class="sec" data-sec="scoreboard"><summary>Scoreboard — which agents actually deliver</summary>
+    <div id="sScore" style="font-size:12px;color:var(--dim)">—</div>
+    </details>
+  </div>
+  <div class="foot">Changes save instantly. Keys live in <code>keys.toml</code>; preferences in <code>settings.toml</code>.</div>
+</div>
+
+<div class="panel" id="schedPanel">
+  <div class="shead"><b>🕒 Scheduled tasks</b><span class="sclose" id="scClose">✕</span></div>
+  <div class="sbody">
+    <div id="schedList"></div>
+    <h4>New schedule</h4>
+    <div class="sched-form">
+      <label>Name</label>
+      <input type="text" id="scName" placeholder="morning-brief">
+      <label>Task</label>
+      <textarea id="scTask" placeholder="Summarize today's AI news into a one-page brief…"></textarea>
+      <label>Time <span class="tznote" id="scTz"></span></label>
+      <input type="time" id="scTime" value="09:00">
+      <label>Days</label>
+      <div class="dayrow" id="scDays"></div>
+      <label>Agents</label>
+      <div class="mini-chips" id="scAgents"></div>
+      <label>Orchestrator</label>
+      <select id="scOrch" style="width:100%"></select>
+      <label>Mode</label>
+      <select id="scPattern" style="width:100%">
+        <option value="standard">standard — plan & split</option>
+        <option value="council">council — everyone answers, judge merges</option>
+        <option value="best-of-n">best-of-n — parallel drafts, pick winner</option>
+        <option value="project">project — build & test real files</option>
+      </select>
+      <label>Output folder</label>
+      <div class="outrow">
+        <input type="text" id="scOut" value="scheduled-output">
+        <button class="sbtn" id="scBrowse" style="padding:6px 12px">Browse…</button>
+      </div>
+      <label style="display:flex;align-items:center;gap:7px;margin-top:10px;color:var(--text);font-size:12.5px;cursor:pointer">
+        <input type="checkbox" id="scNotify" checked style="accent-color:var(--accent)"> Also send the result to the mailbox
+      </label>
+      <label>Deliver the result to</label>
+      <select id="scDelivery" style="width:100%">
+        <option value="folder">output folder (above)</option>
+        <option value="mailbox">mailbox — full result as a message</option>
+        <option value="webhook">webhook URL (POST JSON)</option>
+      </select>
+      <div id="scWebhookRow" style="display:none">
+        <label>Webhook URL</label>
+        <input type="text" id="scWebhook" placeholder="https://…">
+      </div>
+      <label style="display:flex;align-items:center;gap:7px;margin-top:8px;color:var(--text);font-size:12.5px;cursor:pointer">
+        <input type="checkbox" id="scQuiet" style="accent-color:var(--accent)"> Quiet mode — deliver nothing when the run reports HEARTBEAT_OK
+      </label>
+      <label>If WolfPack was closed at fire time</label>
+      <select id="scCatchup" style="width:100%">
+        <option value="skip">skip it — wait for the next slot</option>
+        <option value="run-once">run once at next startup (catch up)</option>
+        <option value="ask">ask me — leave a mailbox note</option>
+      </select>
+      <button id="schedCreate">+ Add schedule</button>
+    </div>
+  </div>
+  <div class="foot">Scheduled tasks run while this server is up. Times use your machine's timezone.</div>
+</div>
+
+<div class="panel" id="mailPanel">
+  <div class="shead"><b>✉ Mailbox</b><span class="sclose" id="mbClose">✕</span></div>
+  <div class="sbody">
+    <div id="mailRun" style="font-size:11.5px;color:var(--dim);margin-bottom:10px"></div>
+    <div id="mailbox"></div>
+  </div>
+  <div class="foot">Messages agents leave for each other — and questions addressed to you (highlighted).</div>
+</div>
+
+<div class="modal-bg" id="modalBg" style="display:none">
+  <div class="modal">
+    <div class="mhead"><b id="mTitle"></b><span id="mClose">✕</span></div>
+    <div id="mBody"></div>
+    <div id="mKeyRow" style="display:none">
+      <input type="text" id="mKey" placeholder="paste API key here" autocomplete="off" spellcheck="false">
+      <div class="mbtnrow">
+        <button class="mbtn save" id="mSave">Save key</button>
+        <button class="mbtn test" id="mTest">Test connection</button>
+      </div>
+    </div>
+    <div class="mbtnrow" id="mCliRow" style="display:none">
+      <button class="mbtn test" id="mTestCli" style="flex:1">Test connection</button>
+    </div>
+    <div id="mResult"></div>
+    <div class="mnote" id="mNote">Keys are stored locally in <code>keys.toml</code> and are only ever sent to the provider they belong to.</div>
+  </div>
+</div>
+
+<div class="modal-bg" id="onbBg" style="display:none">
+  <div class="modal" style="width:540px">
+    <div class="mhead"><b>Welcome — link your agents</b><span id="onbClose" style="cursor:pointer;color:var(--dim);padding:2px 6px">✕</span></div>
+    <div class="step-line" style="color:var(--dim);font-size:12.5px">WolfPack found things that aren't linked yet. Set each one up now or skip it —
+      you can reopen this wizard anytime from Settings → Setup wizard.</div>
+    <div id="onbList"></div>
+    <div id="onbSay"></div>
+    <div class="mbtnrow">
+      <button class="mbtn save" id="onbDone">Done</button>
+      <button class="mbtn test" id="onbSkipAll">Skip all for now</button>
+    </div>
+  </div>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+let AGENTS = {}, PROVIDERS = {}, ORCH = "codex", currentRun = null, pollTimer = null;
+let SETTINGS = {}, OC_MODELS = null, lastMailbox = [], globalMailbox = [], pendingFiles = [], continueFrom = null;
+const PREFS_KEY = "agent-harness-prefs-v1";
+const getPrefs = () => { try { return JSON.parse(localStorage.getItem(PREFS_KEY)) || {}; } catch(e){ return {}; } };
+const setPrefs = () => {
+  const p = getPrefs();
+  p.orch = $("#orch").value; p.agents = chosenAgents();
+  localStorage.setItem(PREFS_KEY, JSON.stringify(p));
+};
+const getMailSeen = () => getPrefs().mailSeen || "";
+const localIso = () => { const d=new Date(), p=n=>String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
+const setMailSeen = ts => { const p = getPrefs(); p.mailSeen = ts; localStorage.setItem(PREFS_KEY, JSON.stringify(p)); };
+function escapeHtml(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
+const isReady = n => (AGENTS[n]||{}).status === "ready";
+const statusOf = n => (AGENTS[n]||{}).status || "?";
+function chosenAgents(){ return [...document.querySelectorAll("#picks .chip.on")].map(c=>c.dataset.name); }
+
+/* ---------- tiny markdown renderer ---------- */
+function md(src){
+  const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+  const lines = src.split("\n"); let html="", inCode=false, listTag=null;
+  const inline = s => esc(s)
+    .replace(/`([^`]+)`/g,"<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>")
+    .replace(/\*([^*]+)\*/g,"<i>$1</i>")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank">$1</a>');
+  const closeList = ()=>{ if(listTag){ html+=`</${listTag}>`; listTag=null; } };
+  for(const ln of lines){
+    if(/^```/.test(ln)){ html += inCode?"</pre>":"<pre>"; inCode=!inCode; continue; }
+    if(inCode){ html += esc(ln)+"\n"; continue; }
+    let m;
+    if(m=ln.match(/^(#{1,4})\s+(.*)/)){ closeList(); html += `<h${m[1].length}>${inline(m[2])}</h${m[1].length}>`; }
+    else if(m=ln.match(/^[-*]\s+(.*)/)){ if(listTag!=="ul"){closeList();html+="<ul>";listTag="ul";} html += `<li>${inline(m[1])}</li>`; }
+    else if(m=ln.match(/^\d+[.)]\s+(.*)/)){ if(listTag!=="ol"){closeList();html+="<ol>";listTag="ol";} html += `<li>${inline(m[1])}</li>`; }
+    else if(m=ln.match(/^>\s?(.*)/)){ closeList(); html += `<blockquote>${inline(m[1])}</blockquote>`; }
+    else { closeList(); if(ln.trim()) html += `<p>${inline(ln)}</p>`; }
+  }
+  closeList(); if(inCode) html += "</pre>";
+  return html;
+}
+
+/* ---------- composer ---------- */
+function buildComposer(){
+  const prefs = getPrefs();
+  // Auto-enable agents that became ready since prefs were last saved — a
+  // newly linked agent should light up, not look greyed out. Agents the
+  // user explicitly toggled off stay off (they're in knownAgents already).
+  const known = new Set(prefs.knownAgents || []);
+  const newly = Object.entries(AGENTS)
+    .filter(([n,c]) => c.status === "ready" && !known.has(n))
+    .map(([n]) => n);
+  if(newly.length){
+    prefs.knownAgents = [...known, ...newly];
+    if(prefs.agents) prefs.agents = [...new Set([...prefs.agents, ...newly])];
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  }
+  const och = $("#orch");
+  const prevOrch = och.value;
+  och.innerHTML = "";
+  const oa = document.createElement("option");
+  oa.value = "auto"; oa.textContent = "auto (best performer)";
+  och.appendChild(oa);
+  for(const [n,c] of Object.entries(AGENTS)){
+    const o = document.createElement("option");
+    const ok = c.status === "ready" || n === "echo";
+    o.value = n;
+    o.textContent = ok ? n : `${n} (${c.status})`;
+    o.disabled = !ok;  // a broken orchestrator fails the run at planning
+    och.appendChild(o);
+  }
+  const okOrch = v => v === "auto" || (v && AGENTS[v]);
+  och.value = okOrch(prevOrch) ? prevOrch
+            : okOrch(prefs.orch) ? prefs.orch : ORCH;
+  och.onchange = setPrefs;
+
+  const picks = $("#picks"); picks.innerHTML = "";
+  for(const [n,c] of Object.entries(AGENTS)){
+    const ready = c.status === "ready";
+    const on = ready && (prefs.agents ? prefs.agents.includes(n) : true);
+    const d = document.createElement("span");
+    const dotCls = ready ? "ok" : c.status === "degraded" ? "warn" : "err";
+    d.className = "chip" + (on ? " on" : "");
+    d.dataset.name = n;
+    d.innerHTML = `<span class="dot ${dotCls}"></span>${n}`;
+    d.title = n==="echo" ? "Test agent — just echoes your prompt back. Costs nothing."
+            : `${c.description}\nstatus: ${c.status}` + (ready ? "" : "\n(click to link)");
+    d.onclick = () => { if(isReady(n)){ d.classList.toggle("on"); setPrefs(); } else openLinkModal(n); };
+    picks.appendChild(d);
+  }
+}
+
+/* ---------- link modal ---------- */
+let modalAgent = null;
+function openLinkModal(name){
+  modalAgent = name;
+  const c = AGENTS[name], isApi = c.type === "api";
+  const p = PROVIDERS[c.provider] || {};
+  $("#mTitle").textContent = `Link ${name}`;
+  let body = `<div class="step-line">${escapeHtml(c.description)}</div>`;
+  if(isReady(name)){
+    body += `<div class="step-line" style="color:var(--ok)">✓ Already linked and ready.</div>`;
+  }
+  if(isApi){
+    if(p.keyless){
+      // local server provider (ollama / bionic / lmstudio) — no key, just needs the app running
+      body += `<div class="step-line">This agent talks to a <b>local server</b> on your machine (${escapeHtml(c.provider)}) — no API key needed.</div>`;
+      if(p.note) body += `<div class="step-line" style="color:var(--dim)">${escapeHtml(p.note)}</div>`;
+      body += `<div class="step-line">Make sure the app is running, then press <b>Test connection</b>.</div>`;
+      $("#mKeyRow").style.display = "none"; $("#mCliRow").style.display = "block";
+      $("#mNote").style.display = "none";
+    } else {
+      body += `<div class="step-line"><b>1.</b> Get ${p.paid ? "a" : "a free"} key from <b>${escapeHtml(c.provider)}</b>${p.signup ? ` — <a href="${p.signup}" target="_blank">${p.signup}</a>` : ""}</div>`;
+      if(p.note) body += `<div class="step-line" style="color:var(--dim)">${escapeHtml(p.note)}</div>`;
+      body += `<div class="step-line"><b>2.</b> Paste it below, press <b>Save key</b>, then <b>Test connection</b>.</div>`;
+      $("#mKeyRow").style.display = "block"; $("#mCliRow").style.display = "none";
+      $("#mNote").style.display = "block";
+      $("#mKey").value = "";
+    }
+  } else {
+    $("#mKeyRow").style.display = "none"; $("#mCliRow").style.display = "block";
+    $("#mNote").style.display = "none";
+    if(c.status === "not-installed"){
+      $("#mCliRow").style.display = "none";
+      body += `<div class="step-line">This agent's CLI isn't installed yet.</div>`;
+      if(c.install) body += `<div class="step-line"><b>Install:</b> <code>${escapeHtml(c.install)}</code></div>`;
+      body += `<div class="step-line" style="color:var(--dim)">Once it's installed, it lights up here automatically — WolfPack checks every time it starts.</div>`;
+    }
+    else if(name === "opencode")
+      body += `<div class="step-line">OpenCode is installed, but its configured provider rejects a built-in tool schema. Fix the provider in OpenCode's config, then press <b>Test connection</b>.</div>`;
+    else
+      body += `<div class="step-line">This agent needs local setup. Press <b>Test connection</b> to check it.</div>`;
+  }
+  $("#mBody").innerHTML = body;
+  mSay("", "");
+  $("#modalBg").style.display = "flex";
+}
+function mSay(cls, msg){
+  const m = $("#mResult");
+  m.className = cls; m.textContent = msg;
+  m.style.display = cls ? "block" : "none";
+}
+async function refreshAgents(){
+  const a = await fetch("/api/agents").then(r=>r.json());
+  AGENTS = a.agents; ORCH = a.orchestrator;
+  buildComposer();
+}
+function autoEnable(name){
+  const chip = [...document.querySelectorAll("#picks .chip")].find(c=>c.dataset.name===name);
+  if(chip && isReady(name)){ chip.classList.add("on"); setPrefs(); }
+}
+async function saveKey(){
+  const c = AGENTS[modalAgent]; const key = $("#mKey").value.trim(); if(!key) return;
+  $("#mSave").disabled = true;
+  try{
+    const r = await fetch("/api/keys",{method:"POST",headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({provider: c.provider, key})}).then(r=>r.json());
+    if(r.error) mSay("err", "Save failed: " + r.error);
+    else { await refreshAgents(); mSay("ok", "Key saved. Now press “Test connection”."); }
+  } catch(e){ mSay("err", "Save failed: " + e); }
+  finally { $("#mSave").disabled = false; }
+}
+async function testAgentConn(){
+  $("#mTest").disabled = true; $("#mTestCli").disabled = true; mSay("", "");
+  try{
+    const r = await fetch("/api/test",{method:"POST",headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({agent: modalAgent})}).then(r=>r.json());
+    if(r.ok){
+      mSay("ok", `✓ Connected in ${r.elapsed_sec}s — ${modalAgent} is ready and now enabled.`);
+      await refreshAgents(); autoEnable(modalAgent);
+    } else {
+      mSay("err", "✗ Not working yet:\n" + (r.output || "unknown error"));
+    }
+  } catch(e){ mSay("err", "Test failed: " + e); }
+  finally { $("#mTest").disabled = false; $("#mTestCli").disabled = false; }
+}
+
+/* ---------- file attachments ---------- */
+function fmtSize(b){ return b > 1048576 ? (b/1048576).toFixed(1)+" MB" : Math.max(1, Math.round(b/1024))+" KB"; }
+function fmtTok(n){ return n >= 1e6 ? (n/1e6).toFixed(1)+"M" : n >= 1000 ? (n/1000).toFixed(1)+"k" : String(n||0); }
+function fmtBytes(b){ return b >= 1048576 ? (b/1048576).toFixed(1)+" MB" : b >= 1024 ? Math.round(b/1024)+" KB" : (b||0)+" B"; }
+function renderFileChips(){
+  const el = $("#fileChips");
+  el.className = pendingFiles.length ? "has" : "";
+  el.innerHTML = "";
+  for(const f of pendingFiles){
+    const c = document.createElement("span");
+    c.className = "fchip";
+    c.innerHTML = `📄 ${escapeHtml(f.name)} <span style="color:var(--dim)">${fmtSize(f.size)}</span> <span class="x" title="remove">✕</span>`;
+    c.querySelector(".x").onclick = ()=>{ pendingFiles = pendingFiles.filter(p=>p.id!==f.id); renderFileChips(); };
+    el.appendChild(c);
+  }
+}
+async function uploadFiles(files){
+  for(const f of files){
+    if(f.size > 25*1024*1024){ alert(`${f.name} is over 25 MB — too big to attach.`); continue; }
+    const b64 = await new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(",")[1]); r.readAsDataURL(f); });
+    try{
+      const r = await fetch("/api/upload",{method:"POST",headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({name: f.name, data_b64: b64})}).then(r=>r.json());
+      if(r.id){
+        pendingFiles.push(r);
+        if(r.warning) alert(`${f.name}: ${r.warning}`);
+      }
+      else alert(`Upload failed for ${f.name}: ` + (r.error || "unknown error"));
+    }catch(e){ alert(`Upload failed for ${f.name}: ` + e); }
+  }
+  renderFileChips();
+}
+function wireDropzone(){
+  let depth = 0;
+  const ov = $("#dropOverlay");
+  document.addEventListener("dragenter", e=>{ e.preventDefault(); if(e.dataTransfer && [...e.dataTransfer.types].includes("Files")){ depth++; ov.style.display="flex"; } });
+  document.addEventListener("dragover", e=>e.preventDefault());
+  document.addEventListener("dragleave", e=>{ e.preventDefault(); if(--depth<=0){ depth=0; ov.style.display="none"; } });
+  document.addEventListener("drop", e=>{
+    e.preventDefault(); depth=0; ov.style.display="none";
+    if(e.dataTransfer && e.dataTransfer.files.length) uploadFiles(e.dataTransfer.files);
+  });
+  $("#attachBtn").onclick = ()=>$("#fileInput").click();
+  $("#fileInput").onchange = e=>{ uploadFiles(e.target.files); e.target.value=""; };
+}
+
+/* ---------- run (concurrent) ---------- */
+async function addTask(){
+  const task = $("#task").value.trim(); if(!task) return;
+  const orch = $("#orch").value;
+  if("Notification" in window && Notification.permission === "default")
+    Notification.requestPermission();  // asked on a real user action
+  if(orch!=="auto" && !isReady(orch) && !confirm(`Orchestrator "${orch}" is not linked (${statusOf(orch)}). The run will likely fail at planning. Continue anyway?`)) return;
+  if(!chosenAgents().length){ alert("Pick at least one agent first."); return; }
+  const taskText = task;
+  const fileIds = pendingFiles.map(f=>f.id);
+  const cont = continueFrom;
+  $("#task").value = "";
+  $("#task").placeholder = "Task added — describe another one…";
+  continueFrom = null; $("#contBar").style.display = "none";
+  const pipeline = [...document.querySelectorAll("#pipeSteps input")]
+    .map(i => ({task: i.value.trim()})).filter(s => s.task);
+  fetch("/api/run",{method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({task: taskText, orchestrator: orch, agents: chosenAgents(), files: fileIds, continue_from: cont, pattern: $("#pattern").value, goal: $("#goal").value.trim(), pipeline})
+  }).then(r=>r.json()).then(r=>{
+    if(r.run_id){ pendingFiles = []; renderFileChips(); $("#goal").value = ""; $("#pipeSteps").innerHTML = ""; currentRun = r.run_id; refreshRuns(); pollDetail(true); }
+  });
+}
+
+/* ---------- presets & pipeline steps ---------- */
+let PRESETS = [];
+function renderPresets(){
+  const el = $("#presets");
+  if(!PRESETS.length){ el.innerHTML = ""; return; }
+  el.innerHTML = PRESETS.map((p,i)=>
+    `<span class="chip pchip" data-i="${i}" title="${escapeHtml(p.task)} · ${p.pattern}">▶ ${escapeHtml(p.name)}<span class="px" data-del="${i}" title="delete preset">✕</span></span>`).join("");
+  el.querySelectorAll(".pchip").forEach(c=>{
+    c.onclick = e=>{
+      const i = +c.dataset.i;
+      if(e.target.dataset.del !== undefined){ deletePreset(i); return; }
+      applyPreset(PRESETS[i]);
+    };
+  });
+}
+async function buildPresets(){
+  try{ PRESETS = (await fetch("/api/presets").then(r=>r.json())).presets || []; }
+  catch(e){ PRESETS = []; }
+  renderPresets();
+}
+function applyPreset(p){
+  if(!p) return;
+  $("#task").value = p.task;
+  $("#pattern").value = p.pattern || "standard";
+  if(p.orchestrator && (p.orchestrator==="auto" || AGENTS[p.orchestrator])) $("#orch").value = p.orchestrator;
+  const want = new Set(p.agents||[]);
+  if(want.size)
+    document.querySelectorAll("#picks .chip").forEach(c=>c.classList.toggle("on", want.has(c.dataset.name)));
+  setPrefs();
+  $("#task").focus();
+}
+async function savePreset(){
+  const task = $("#task").value.trim();
+  if(!task){ alert("Type the task first, then save it as a preset."); return; }
+  const name = prompt("Preset name:", task.slice(0,40));
+  if(name === null) return;
+  PRESETS.push({name: name.trim() || task.slice(0,40), task, pattern: $("#pattern").value,
+                orchestrator: $("#orch").value, agents: chosenAgents()});
+  const r = await fetch("/api/presets",{method:"POST",headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({presets: PRESETS})}).then(r=>r.json());
+  if(r.ok){ PRESETS = r.presets; renderPresets(); }
+}
+async function deletePreset(i){
+  PRESETS.splice(i,1);
+  const r = await fetch("/api/presets",{method:"POST",headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({presets: PRESETS})}).then(r=>r.json());
+  if(r.ok){ PRESETS = r.presets; renderPresets(); }
+}
+function addPipeStep(){
+  const box = $("#pipeSteps");
+  if(box.children.length >= 3) return;
+  const d = document.createElement("div"); d.className = "pstep";
+  d.innerHTML = `<span class="parr">↳ then</span><input type="text" maxlength="2000" placeholder="follow-up task — starts when this one finishes, result carried over"><span class="x" title="remove">✕</span>`;
+  d.querySelector(".x").onclick = ()=>d.remove();
+  box.appendChild(d);
+  d.querySelector("input").focus();
+}
+
+/* ---------- history ---------- */
+const PHASE_LABEL = {planning:"Planning…",executing:"Working…",building:"Building…",testing:"Testing…",synthesizing:"Synthesizing…",reviewing:"Reviewing…",verifying:"Verifying…",learning:"Learning…",waiting:"Waiting for you…",done:"Done",failed:"Failed",stopped:"Stopped",interrupted:"Interrupted",loading:"…"};
+async function refreshRuns(){
+  const r = await fetch("/api/runs").then(r=>r.json());
+  const el = $("#histList"); el.innerHTML = "";
+  const byId = {}; r.runs.forEach(x=>byId[x.run_id]=x);
+  const children = {}, roots = [];
+  for(const run of r.runs){
+    const p = run.continued_from;
+    if(p && byId[p]) (children[p] = children[p] || []).push(run);
+    else roots.push(run);  // includes orphans whose parent scrolled off
+  }
+  for(const k in children) children[k].sort((a,b)=>(a.started||"").localeCompare(b.started||""));
+  const addItem = (run, depth) => {
+    const d = document.createElement("div");
+    d.className = "hist-item" + (depth?" child":"") + (run.run_id===currentRun ? " sel" : "") + (run.active ? " active" : "");
+    const col = run.phase==="done" ? "var(--ok)" : (run.phase==="failed"||run.phase==="interrupted") ? "var(--err)" : "var(--warn)";
+    const dot = run.active ? '<span class="pulse"></span>' : `●`;
+    const quiet = run.silence ? ` <span class="quiet-badge${run.silence==="critical"?" crit":""}" title="No new output for ${run.silence_min} min — it may be stuck; you can stop it or let it finish">⏱ quiet ${run.silence_min}m</span>` : "";
+    d.innerHTML = `<div class="t">${depth?"↳ ":""}${escapeHtml(run.task)}</div>
+      <div class="m"><span style="color:${col}">${dot} ${PHASE_LABEL[run.phase]||run.phase}</span>${quiet}<span>${(run.started||"").replace("T"," ")}</span></div>`;
+    d.onclick = ()=>{ currentRun = run.run_id; scrollToSel = true; refreshRuns(); pollDetail(true); };
+    if(!depth){  // deleting a root removes the whole conversation
+      const x = document.createElement("span");
+      x.className = "del"; x.textContent = "✕"; x.title = "Delete this conversation";
+      x.onclick = e=>{ e.stopPropagation(); confirmDeleteChain(run.run_id, 1 + countDesc(run.run_id)); };
+      d.appendChild(x);
+    }
+    el.appendChild(d);
+    (children[run.run_id]||[]).forEach(c=>addItem(c, depth+1));
+  };
+  const countDesc = rid => (children[rid]||[]).reduce((n,c)=>n+1+countDesc(c.run_id), 0);
+  roots.forEach(run=>addItem(run, 0));
+}
+
+/* ---------- delete conversation ---------- */
+async function deleteChain(rootId){
+  const r = await fetch("/api/delete",{method:"POST",headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({run_id: rootId})}).then(r=>r.json());
+  if(!r.ok){ alert(r.error || "Delete failed"); return; }
+  if((r.deleted||[]).includes(currentRun)){
+    currentRun = null;
+    $("#detail").style.display = "none"; $("#empty").style.display = "block";
+    document.title = "WolfPack — Agent Harness";
+  }
+  refreshRuns();
+}
+function confirmDeleteChain(rootId, count){
+  if(getPrefs().skipDeleteConfirm){ deleteChain(rootId); return; }
+  modalAgent = null;
+  $("#mTitle").textContent = "Delete conversation?";
+  $("#mKeyRow").style.display = "none"; $("#mCliRow").style.display = "none"; $("#mNote").style.display = "none";
+  $("#mBody").innerHTML = `<div class="step-line">This permanently deletes <b>${count} run${count>1?"s":""}</b> and all their files from disk.</div>
+    <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--dim);margin-top:12px;cursor:pointer">
+      <input type="checkbox" id="delSkip" style="accent-color:var(--accent)"> don't warn me again
+    </label>
+    <div class="mbtnrow">
+      <button class="mbtn test" id="delCancel">Cancel</button>
+      <button class="mbtn save" id="delGo" style="background:var(--err)">Delete</button>
+    </div>`;
+  mSay("", "");
+  $("#modalBg").style.display = "flex";
+  $("#delCancel").onclick = ()=>{ $("#modalBg").style.display = "none"; };
+  $("#delGo").onclick = ()=>{
+    if($("#delSkip").checked){
+      const p = getPrefs(); p.skipDeleteConfirm = true;
+      localStorage.setItem(PREFS_KEY, JSON.stringify(p));
+    }
+    $("#modalBg").style.display = "none";
+    deleteChain(rootId);
+  };
+}
+
+/* ---------- detail (conversation thread) ---------- */
+let CHAIN = {};           // run_id -> detail, for toggle rendering
+let CHAIN_ORDER = [];     // chronological run ids of the current thread
+const PREV_PHASES = {};   // run_id -> last seen phase, for finish notifications
+let scrollToSel = false;  // set when the user clicks a sidebar item
+
+function pollDetail(force){
+  if(!currentRun) return;
+  $("#empty").style.display = "none"; $("#detail").style.display = "block";
+  clearTimeout(pollTimer);
+  fetch(`/api/chain/${currentRun}`).then(r=>r.json()).then(renderThread).catch(()=>{});
+}
+function pipelineHtml(s){
+  const phases = ["planning","executing","synthesizing","reviewing","learning","done"];
+  const alias = {building:"executing", testing:"reviewing", verifying:"reviewing"};  // project-mode phases map onto the pipeline
+  const cur = phases.indexOf(alias[s.phase] || s.phase);
+  return phases.map((p,i)=>{
+    let cls = s.phase==="failed" && i===Math.max(cur,0) ? "failed"
+            : (i<cur || (s.phase==="done" && i<=cur)) ? "done" : i===cur ? "active" : "";
+    const label = {planning:"① Plan",executing:"② Execute",synthesizing:"③ Synthesize",reviewing:"④ Review",learning:"⑤ Learn",done:"✓ Done"}[p];
+    return `<div class="step ${cls}">${label}</div>`;
+  }).join('<div class="connector"></div>');
+}
+function badgeHtml(agent){
+  const hue = [...agent].reduce((h,c)=>((h*31+c.charCodeAt(0))>>>0)%360, 0);
+  const known = ["codex","kimi","opencode","echo"].includes(agent);
+  return `<span class="badge ${known?agent:""}" ${known?"":`style="background:hsla(${hue},70%,60%,.15);color:hsl(${hue},70%,70%)"`}>${agent}</span>`;
+}
+function tpHtml(agent, title, text, live, st, meta){
+  const stHtml = st==="running" ? `<span class="st running"><span class="spin"></span>working</span>`
+               : st==="queued" ? `<span class="st queued">queued</span>`
+               : `<span class="st ${st}">${st}</span>`;
+  const body = text ? escapeHtml(text)
+               : `<span class="dim">${live?"thinking…":st==="queued"?"waiting for its turn…":"(no output captured)"}</span>`;
+  return `<div class="tp${live?" live":""}"><div class="th">${badgeHtml(agent)}<span class="ttl">${escapeHtml(title)}</span>${stHtml}</div>${meta?`<div class="tmeta2">${meta}</div>`:""}<div class="tb">${body}</div></div>`;
+}
+function teamHtml(s){
+  const panels = [];
+  const os = s.orch_streams || {}, streams = s.streams || {};
+  const orch = s.orchestrator || "orchestrator";
+  if(s.phase==="planning" || os.plan)
+    panels.push(tpHtml(orch, "orchestrator · planning the task split", os.plan,
+                       s.phase==="planning", s.phase==="planning"?"running":"done"));
+  for(const [sid,st] of Object.entries(s.subtasks||{})){
+    const deps = (st.depends_on && st.depends_on.length) ? ` · after ${st.depends_on.join(", ")}` : "";
+    const time = st.elapsed_sec != null ? ` · ${st.elapsed_sec}s` : "";
+    panels.push(tpHtml(st.agent, st.title, streams[sid]||st.preview||"", st.status==="running", st.status, `${sid}${deps}${time}`));
+  }
+  if(s.phase==="synthesizing" || os.synth)
+    panels.push(tpHtml(orch, "orchestrator · synthesizing the final result", os.synth,
+                       s.phase==="synthesizing",
+                       s.phase==="synthesizing"?"running":(os.synth?"done":"queued")));
+  const rv = s.review || {};
+  if(s.phase==="reviewing" || os.review)
+    panels.push(tpHtml(rv.agent || "reviewer", "final review pass", os.review,
+                       s.phase==="reviewing" && !os.revise,
+                       (s.phase==="reviewing" && !os.revise)?"running":"done"));
+  if(os.revise)
+    panels.push(tpHtml(orch, "orchestrator · revising after review", os.revise, false, "done"));
+  if(!panels.length) return "";
+  return `<h2 class="sec" style="margin:2px 0 10px">Team — what each agent did</h2><div id="team">${panels.join("")}</div>`;
+}
+function cardsHtml(s){
+  let out = "";
+  for(const [sid,st] of Object.entries(s.subtasks||{})){
+    const deps = (st.depends_on && st.depends_on.length) ? ` · after ${st.depends_on.join(", ")}` : "";
+    let time = "";
+    if(st.elapsed_sec != null) time = ` · ${st.elapsed_sec}s`;
+    else if(st.started) time = ` · ${Math.max(0,(Date.now()-new Date(st.started).getTime())/1000).toFixed(0)}s…`;
+    const stHtml = st.status==="running" ? `<span class="st running"><span class="spin"></span>running</span>` : `<span class="st ${st.status}">${st.status}</span>`;
+    out += `<div class="card"><div class="head">${badgeHtml(st.agent)}
+        <span class="title">${escapeHtml(st.title)}</span>${stHtml}</div>
+      <div class="meta">${sid}${deps}${time}</div>
+      ${st.preview ? `<span class="tgl">▸ output</span><div class="prev">${escapeHtml(st.preview)}</div>` : ""}</div>`;
+  }
+  return out ? `<div id="cards" style="margin:12px 0 4px">${out}</div>` : "";
+}
+function bindToggles(el){
+  el.querySelectorAll(".tgl").forEach(t=>t.onclick = ()=>{
+    const p = t.nextElementSibling;
+    if(p && p.classList.contains("prev")){ p.classList.toggle("show"); t.textContent = (p.classList.contains("show")?"▾":"▸")+" output"; }
+    if(p && p.classList.contains("cards-wrap")){ p.style.display = p.style.display==="none"?"block":"none"; t.textContent = (p.style.display==="none"?"▸":"▾")+t.textContent.slice(1); }
+  });
+  el.querySelectorAll(".rlink").forEach(a=>{
+    if(a.dataset.saveskill){
+      a.onclick = async ()=>{
+        a.textContent = "⏳ writing skill…"; a.style.pointerEvents = "none";
+        try{
+          const r = await fetch("/api/save-skill",{method:"POST",headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({run_id: a.dataset.saveskill})}).then(r=>r.json());
+          if(r.ok){ a.textContent = `☆ saved → skills/${r.name}`; buildSkills(); }
+          else { a.textContent = "☆ save as skill"; a.style.pointerEvents = ""; alert(r.error || "could not write a skill"); }
+        }catch(e){ a.textContent = "☆ save as skill"; a.style.pointerEvents = ""; alert("save failed: " + e); }
+      };
+      return;
+    }
+    a.onclick = ()=>{
+      fetch("/api/open",{method:"POST",headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({run_id: a.dataset.run, what: a.dataset.what})}).then(r=>r.json())
+        .then(r=>{ if(!r.ok && r.error) alert(r.error); });
+    };
+  });
+}
+function scoresHtml(s){
+  if(!s.scores || !Object.keys(s.scores).length) return "";
+  const rows = Object.entries(s.scores)
+    .map(([sid, sc]) => ({agent: ((s.subtasks||{})[sid]||{}).agent || sid, sc}))
+    .sort((a,b)=>b.sc-a.sc);
+  return `<div class="scores">` + rows.map((r,i)=>
+    `<div class="srow2">${i===0?"🏆":"&nbsp;"}<span class="snm">${escapeHtml(r.agent)}</span><span class="sbar"><span style="width:${r.sc*10}%"></span></span><b>${r.sc}</b></div>`
+  ).join("") + `</div>`;
+}
+function turnSig(s){
+  return JSON.stringify([s.phase, s.error, s.cycle||0, (s.result||"").length,
+    Object.values(s.subtasks||{}).map(t=>[t.status, t.elapsed_sec, (t.preview||"").length]),
+    Object.values(s.streams||{}).map(x=>x.length),
+    Object.values(s.orch_streams||{}).map(x=>x.length),
+    JSON.stringify(s.review||null), JSON.stringify(s.verification||null),
+    JSON.stringify(s.scores||null),
+    s.rating||0,
+    s.phase!=="done" && s.phase!=="failed" && s.phase!=="stopped" && s.phase!=="interrupted" ? Math.floor(Date.now()/1500) : 0]);
+}
+function renderThread(data){
+  if(!data || !data.chain || !data.chain.length) return;
+  const chain = data.chain;
+  if(!chain.some(s=>s.run_id===currentRun)) return;
+  CHAIN = {}; chain.forEach(s=>CHAIN[s.run_id]=s);
+  CHAIN_ORDER = chain.map(s=>s.run_id);
+  const thread = $("#thread");
+  const m = $("#main");
+  const nearBottom = m.scrollTop + m.clientHeight > m.scrollHeight - 120;
+
+  const last = chain[chain.length-1];
+  document.title = last.phase==="done" ? "✓ Done · WolfPack"
+                 : last.phase==="failed" ? "✗ Failed · WolfPack"
+                 : last.phase==="interrupted" ? "⚠ Interrupted · WolfPack"
+                 : `${PHASE_LABEL[last.phase]||"…"} · WolfPack`;
+
+  lastMailbox = chain.flatMap(s=>s.mailbox||[]).sort((a,b)=>(a.ts||"").localeCompare(b.ts||""));
+  updateMailDot();
+  if($("#mailPanel").classList.contains("open")) renderMailbox();
+
+  for(const s of chain){
+    const sig = turnSig(s);
+    let el = thread.querySelector(`[data-run="${s.run_id}"]`);
+    if(el && el.dataset.sig === sig) continue;  // unchanged — keep DOM (selection, toggles)
+    const live = s.phase!=="done" && s.phase!=="failed" && s.phase!=="stopped" && s.phase!=="interrupted";
+    const when = (s.started||"").replace("T"," ").slice(5,16);
+    const files = (s.files && s.files.length) ? ` <span class="tfiles">📎 ${s.files.map(escapeHtml).join(", ")}</span>` : "";
+    const goalTag = s.goal ? `<div class="tmeta" style="margin-top:3px">🎯 ${escapeHtml(s.goal)}</div>` : "";
+    const usageTag = s.usage && s.usage.calls
+      ? `<span class="tmeta" style="margin-left:8px">${fmtTok(s.usage.input_tokens)} in · ${fmtTok(s.usage.output_tokens)} out · ${s.usage.calls} call${s.usage.calls>1?"s":""}</span>` : "";
+    let ans = "";
+    if(live){
+      ans = `<span class="tstatus live">${PHASE_LABEL[s.phase]||s.phase}${s.cycle?` · cycle ${s.cycle}`:""}</span><button class="stopbtn" onclick="stopRun('${s.run_id}')">■ stop</button>${usageTag}
+        ${s.phase!=="waiting"?`<div id="pipeline" style="margin-bottom:12px">${pipelineHtml(s)}</div>`:""}
+        ${s.pending_question?`<div class="err-banner" style="border-color:var(--warn);color:var(--warn);background:rgba(210,153,34,.1)">❓ <b>${escapeHtml(s.pending_question.from||"an agent")}</b> is waiting for your answer: ${escapeHtml(s.pending_question.text||"")}<br><span style="color:var(--dim);font-size:12px">reply in the mailbox (✉ bottom-left)</span></div>`:""}
+        ${s.error?`<div class="err-banner">⚠ ${escapeHtml(s.error)}</div>`:""}
+        ${teamHtml(s)}
+        <div class="steerrow"><input id="steer-${s.run_id}" maxlength="500"
+          placeholder="steer this run — the team sees your note on the next step"
+          onkeydown="if(event.key==='Enter')steerRun('${s.run_id}')"><button onclick="steerRun('${s.run_id}')">steer</button></div>`;
+    } else {
+      const vf = s.verification || null;
+      const vfHtml = vf && vf.verdict ? `<div class="verify-badge ${vf.verdict==="pass"?"pass":"concerns"}">${vf.verdict==="pass"?"✓ verified by "+escapeHtml(vf.agent):"⚠ verifier ("+escapeHtml(vf.agent)+") has concerns"}${vf.notes?` — ${escapeHtml(vf.notes)}`:""}</div>` : "";
+      ans = `<span class="tstatus ${s.phase}">${s.phase==="done"?"✓ done":s.phase==="stopped"?"■ stopped":s.phase==="interrupted"?"⚠ interrupted":"✗ failed"}</span>${usageTag}
+        ${s.error?`<div class="err-banner">⚠ ${escapeHtml(s.error)}</div>`:""}
+        ${scoresHtml(s)}
+        ${s.result?`<div class="res">${md(s.result)}</div>`:""}
+        ${vfHtml}
+        ${teamHtml(s)}
+        <div class="rlinks-below" style="margin:6px 0 2px">
+          <a class="rlink" data-run="${s.run_id}" data-what="result">📄 result.md</a>
+          <a class="rlink" data-run="${s.run_id}" data-what="folder">📁 runs/${s.run_id}</a>
+          ${s.project_dir?`<a class="rlink" data-run="${s.run_id}" data-what="project">📁 project/</a>`:""}
+          ${s.phase==="done"?`<a class="rlink" data-saveskill="${s.run_id}">☆ save as skill</a>`:""}
+          <a class="rlink rate${s.rating===1?" on":""}" title="good result — boosts these agents on the scoreboard and in auto-orchestrator picks" onclick="rateRun('${s.run_id}',1)">👍</a>
+          <a class="rlink rate${s.rating===-1?" on":""}" title="poor result — weighs these agents down" onclick="rateRun('${s.run_id}',-1)">👎</a>
+        </div>`;
+    }
+    const html = `<div class="tuser"><div class="tmeta">you · ${when}</div><div class="ttask">${escapeHtml(s.task)}${files}</div>${goalTag}</div>
+      <div class="tans">${ans}</div>`;
+    if(!el){
+      el = document.createElement("div");
+      el.className = "turn";
+      el.dataset.run = s.run_id;
+      thread.appendChild(el);
+    }
+    el.dataset.sig = sig;
+    el.classList.toggle("sel", s.run_id===currentRun);
+    const steerEl = el.querySelector(".steerrow input");
+    const steerVal = steerEl ? steerEl.value : null;
+    const steerFocus = steerEl && document.activeElement === steerEl;
+    el.innerHTML = html;
+    if(steerVal !== null){  // live turns re-render while polling — keep what you typed
+      const ne = el.querySelector(".steerrow input");
+      if(ne){ ne.value = steerVal; if(steerFocus) ne.focus(); }
+    }
+    bindToggles(el);
+    // keep live thought panels pinned to their newest output
+    el.querySelectorAll(".tp.live .tb").forEach(b=>{ b.scrollTop = b.scrollHeight; });
+  }
+  // finish notifications — only when the tab is in the background
+  for(const s of chain){
+    const prev = PREV_PHASES[s.run_id];
+    const wasLive = prev && !["done","failed","stopped","interrupted"].includes(prev);
+    if(wasLive && ["done","failed","interrupted"].includes(s.phase)
+       && document.hidden && "Notification" in window && Notification.permission==="granted"){
+      new Notification(`WolfPack — ${s.phase==="done"?"✓ done":s.phase==="failed"?"✗ failed":"⚠ interrupted"}`,
+        {body: (s.task||"").slice(0,80)});
+    }
+    PREV_PHASES[s.run_id] = s.phase;
+  }
+  // drop turns no longer in this chain (switched threads)
+  thread.querySelectorAll(".turn").forEach(el=>{
+    if(!CHAIN[el.dataset.run]) el.remove();
+  });
+  if(scrollToSel){
+    scrollToSel = false;
+    const sel = thread.querySelector(".turn.sel");
+    if(sel) sel.scrollIntoView({block:"start", behavior:"smooth"});
+  } else if(nearBottom){
+    m.scrollTop = m.scrollHeight;
+  }
+  const active = chain.some(s=>s.phase!=="done" && s.phase!=="failed" && s.phase!=="stopped" && s.phase!=="interrupted");
+  if(active) pollTimer = setTimeout(pollDetail, 1500);
+  else refreshRuns();
+}
+async function stopRun(rid){
+  const r = await fetch("/api/stop",{method:"POST",headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({run_id: rid})}).then(r=>r.json());
+  if(!r.ok) alert(r.error || "could not stop the run");
+}
+async function steerRun(rid){
+  const inp = document.getElementById("steer-"+rid);
+  if(!inp) return;
+  const text = (inp.value||"").trim();
+  if(!text) return;
+  inp.disabled = true;
+  try{
+    const r = await fetch("/api/steer",{method:"POST",headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({run_id: rid, text})}).then(r=>r.json());
+    if(r.ok){ inp.value=""; inp.placeholder="✓ steered — the team picks it up on the next step"; }
+    else alert(r.error || "steer failed");
+  } finally { inp.disabled = false; inp.focus(); }
+}
+async function rateRun(rid, r){
+  const cur = CHAIN[rid] && CHAIN[rid].rating;
+  const next = cur === r ? 0 : r;  // click the same thumb again to clear
+  const res = await fetch("/api/rate",{method:"POST",headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({run_id: rid, rating: next})}).then(r=>r.json());
+  if(res.ok && CHAIN[rid]) CHAIN[rid].rating = next;
+  pollDetail();
+}
+
+/* ---------- mailbox panel ---------- */
+const isUserMsg = m => ["user","you","human"].includes((m.to||"").toLowerCase());
+function updateMailDot(){
+  if($("#mailPanel").classList.contains("open")){
+    setMailSeen(localIso());
+    $("#mailNotif").style.display = "none";
+    return;
+  }
+  const seen = getMailSeen();
+  const unread = [...globalMailbox, ...lastMailbox]
+    .filter(m=>isUserMsg(m) && (m.ts||"") > seen).length;
+  $("#mailNotif").style.display = unread ? "block" : "none";
+  $("#mailBtn").title = unread
+    ? `Mailbox — ${unread} new message${unread>1?"s":""} for you`
+    : "Mailbox — agent messages & questions";
+}
+async function pollMailbox(){
+  try{ globalMailbox = (await fetch("/api/mailbox").then(r=>r.json())).messages || []; }catch(e){}
+  updateMailDot();
+  if($("#mailPanel").classList.contains("open")) renderMailbox();
+}
+function msgNode(m){
+  const isQ = isUserMsg(m);
+  const d = document.createElement("div");
+  d.className = "msg" + (isQ ? " question" : "");
+  const body = escapeHtml(m.text).replace(
+    /([A-Za-z]:\\[^\s"<>|]+|(?:\/[A-Za-z0-9_.~+-]+){2,}\/?)/g,
+    '<a class="plink" data-p="$1">$1</a>');
+  d.innerHTML = `<div class="mh">${isQ?"❓ ":""}<b>${escapeHtml(m.from)}</b> → ${escapeHtml(m.to)} · ${(m.ts||"").replace("T"," ").slice(5)}</div><div class="mt">${body}</div>`;
+  d.querySelectorAll(".plink").forEach(a=>a.onclick = ()=>{
+    fetch("/api/open",{method:"POST",headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({path: a.dataset.p})}).then(r=>r.json())
+      .then(r=>{ if(!r.ok && r.error) alert(r.error); });
+  });
+  return d;
+}
+function renderMailbox(){
+  setMailSeen(localIso());
+  $("#mailNotif").style.display = "none";
+  $("#mailRun").textContent = currentRun ? `run: ${currentRun}` : "no run selected";
+  const mb = $("#mailbox"); mb.innerHTML = "";
+  if(globalMailbox.length){
+    const h = document.createElement("h4"); h.textContent = "App messages"; mb.appendChild(h);
+    for(const m of globalMailbox.slice(-30).reverse()) mb.appendChild(msgNode(m));
+  }
+  if(currentRun){
+    const h = document.createElement("h4"); h.textContent = "This run"; mb.appendChild(h);
+    const pq = CHAIN[currentRun] && CHAIN[currentRun].pending_question;
+    if(pq){
+      const box = document.createElement("div");
+      box.className = "msg question";
+      box.innerHTML = `<div class="mh">❓ <b>${escapeHtml(pq.from||"agent")}</b> asks — the run is paused until you answer:</div>
+        <div class="mt">${escapeHtml(pq.text||"")}</div>
+        <div class="outrow" style="margin-top:8px">
+          <input type="text" placeholder="type your answer…" style="flex:1;background:var(--panel);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 9px;font:inherit;font-size:12.5px">
+          <button class="sbtn" style="padding:6px 14px">reply</button>
+        </div>`;
+      const inp = box.querySelector("input");
+      const send = async ()=>{
+        const answer = inp.value.trim(); if(!answer) return;
+        const r = await fetch("/api/mailbox/reply",{method:"POST",headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({run_id: currentRun, answer})}).then(r=>r.json());
+        if(!r.ok) alert(r.error || "reply failed");
+        else pollDetail(true);
+      };
+      box.querySelector("button").onclick = send;
+      inp.onkeydown = e=>{ if(e.key==="Enter") send(); };
+      mb.appendChild(box);
+    }
+    if(!lastMailbox.length)
+      mb.insertAdjacentHTML("beforeend", '<span class="mbx-empty">No messages in this run yet.</span>');
+    else for(const m of [...lastMailbox].reverse()) mb.appendChild(msgNode(m));
+  }
+  if(!globalMailbox.length && !lastMailbox.length)
+    mb.innerHTML = '<span class="mbx-empty">No messages yet. Agents can leave questions for you here, and scheduled tasks can post results.</span>';
+}
+
+/* ---------- schedules panel ---------- */
+const DAYS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+let schedDays = new Set([1,2,3,4,5]);
+async function schedApi(p){
+  return fetch("/api/schedule",{method:"POST",headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(p)}).then(r=>r.json());
+}
+async function refreshSchedules(){
+  const r = await fetch("/api/schedules").then(r=>r.json());
+  $("#scTz").textContent = `(${Intl.DateTimeFormat().resolvedOptions().timeZone} — your local time)`;
+  const el = $("#schedList"); el.innerHTML = "";
+  if(!r.schedules.length){ el.innerHTML = '<div style="font-size:12px;color:var(--dim);margin-bottom:8px">No schedules yet.</div>'; return; }
+  for(const s of r.schedules){
+    const d = document.createElement("div");
+    d.className = "sched-item" + (s.enabled ? "" : " off");
+    const days = s.days.length===7 ? "every day" : [...s.days].sort((a,b)=>a-b).map(i=>DAYS[i]).join(" ");
+    d.innerHTML = `<div class="sname">${escapeHtml(s.name)}</div>
+      <div class="swhen">🕒 ${s.time} · ${days}</div>
+      <div class="smeta">${escapeHtml(s.task.slice(0,90))}${s.task.length>90?"…":""}<br>
+        agents: ${escapeHtml((s.agents||[]).join(", ")||"all")} → ${s.delivery==="mailbox"?"📬 mailbox":s.delivery==="webhook"?"🪝 webhook":escapeHtml(s.output_dir||"scheduled-output")}${s.notify&&s.delivery!=="mailbox"?" · 📬 notify":""}${s.quiet?" · 🤫 quiet":""}${s.pattern&&s.pattern!=="standard"?" · mode: "+escapeHtml(s.pattern):""}${s.catchup&&s.catchup!=="skip"?" · catch-up: "+(s.catchup==="run-once"?"run once":"ask"):""}
+        ${s.last_run?`<br>last run: ${s.last_run.replace("T"," ")}`:""}
+        <br><span style="color:var(--dim)" title="Fire this schedule from any tool — an external script, a browser bookmark, another agent">trigger: POST /api/schedule {"action":"run","id":"${s.id}"}</span></div>
+      <div class="sact">
+        <button class="sbtn" data-a="toggle">${s.enabled?"⏸ pause":"▶ enable"}</button>
+        <button class="sbtn" data-a="run">⚡ run now</button>
+        <button class="sbtn danger" data-a="delete">✕ delete</button>
+      </div>`;
+    d.querySelectorAll(".sbtn").forEach(b=>b.onclick = async ()=>{
+      await schedApi({action: b.dataset.a, id: s.id});
+      refreshSchedules();
+    });
+    el.appendChild(d);
+  }
+}
+function buildSchedForm(){
+  const dr = $("#scDays"); dr.innerHTML = "";
+  DAYS.forEach((d,i)=>{
+    const el = document.createElement("span");
+    el.className = "day" + (schedDays.has(i)?" on":"");
+    el.textContent = d;
+    el.onclick = ()=>{ schedDays.has(i)?schedDays.delete(i):schedDays.add(i); el.classList.toggle("on"); };
+    dr.appendChild(el);
+  });
+  const ac = $("#scAgents"); ac.innerHTML = "";
+  for(const [n,c] of Object.entries(AGENTS)){
+    const chip = document.createElement("span");
+    const ready = c.status==="ready";
+    chip.className = "chip" + (ready?" on":"");
+    chip.style.opacity = ready?"1":".45";
+    chip.dataset.name = n;
+    chip.innerHTML = `<span class="dot ${ready?"ok":c.status==="degraded"?"warn":"err"}"></span>${n}`;
+    if(ready) chip.onclick = ()=>chip.classList.toggle("on");
+    else chip.title = "not linked — link it first";
+    ac.appendChild(chip);
+  }
+  const so = $("#scOrch"); so.innerHTML = "";
+  const oa = document.createElement("option");
+  oa.value = "auto"; oa.textContent = "auto (best performer)";
+  so.appendChild(oa);
+  for(const [n,c] of Object.entries(AGENTS)){
+    const ok = c.status==="ready" || n==="echo";
+    const o = document.createElement("option"); o.value=n;
+    o.textContent = ok ? n : `${n} (${c.status})`;
+    o.disabled = !ok;
+    if(n===ORCH) o.selected = true;
+    so.appendChild(o);
+  }
+}
+async function createSchedule(){
+  const task = $("#scTask").value.trim();
+  if(!task){ alert("Give the schedule a task."); return; }
+  if(!schedDays.size){ alert("Pick at least one day."); return; }
+  const delivery = $("#scDelivery").value;
+  if(delivery==="webhook" && !$("#scWebhook").value.trim()){ alert("Webhook delivery needs a URL."); return; }
+  const r = await schedApi({action:"create", name:$("#scName").value.trim(), task,
+    time: $("#scTime").value, days: [...schedDays],
+    agents: [...document.querySelectorAll("#scAgents .chip.on")].map(c=>c.dataset.name),
+    orchestrator: $("#scOrch").value, pattern: $("#scPattern").value, output_dir: $("#scOut").value.trim(),
+    notify: $("#scNotify").checked, delivery,
+    webhook_url: $("#scWebhook").value.trim(), quiet: $("#scQuiet").checked,
+    catchup: $("#scCatchup").value});
+  if(r.error){ alert(r.error); return; }
+  $("#scName").value = ""; $("#scTask").value = "";
+  refreshSchedules();
+}
+async function browseFolder(){
+  const b = $("#scBrowse"); b.disabled = true;
+  try{
+    const r = await fetch("/api/pick-folder",{method:"POST"}).then(r=>r.json());
+    if(r.path) $("#scOut").value = r.path;
+    else if(r.error) alert("Folder picker unavailable: " + r.error);
+  } finally { b.disabled = false; }
+}
+
+/* ---------- settings panel ---------- */
+function refreshDisk(){
+  fetch("/api/disk").then(r=>r.json()).then(d=>{
+    $("#diskInfo").textContent = `${d.runs_count} runs · ${fmtBytes(d.runs_bytes)}`;
+  }).catch(()=>{ $("#diskInfo").textContent = "?"; });
+}
+async function saveSettings(partial){
+  const r = await fetch("/api/settings",{method:"POST",headers:{"Content-Type":"application/json"},
+    body: JSON.stringify(partial)}).then(r=>r.json());
+  if(r.settings) SETTINGS = r.settings;
+}
+async function ocModels(){
+  if(OC_MODELS) return OC_MODELS;
+  try{ OC_MODELS = (await fetch("/api/models/opencode").then(r=>r.json())).models || []; }
+  catch(e){ OC_MODELS = []; }
+  return OC_MODELS;
+}
+async function buildSettings(){
+  const so = $("#sOrch"); so.innerHTML = "";
+  const oa = document.createElement("option");
+  oa.value = "auto"; oa.textContent = "auto (best performer)";
+  so.appendChild(oa);
+  for(const [n,c] of Object.entries(AGENTS)){
+    const o = document.createElement("option");
+    const ok = c.status === "ready" || n === "echo";
+    o.value = n;
+    o.textContent = ok ? n : `${n} (${c.status})`;
+    o.disabled = !ok;
+    so.appendChild(o);
+  }
+  so.value = SETTINGS.orchestrator || ORCH;
+  so.onchange = ()=>saveSettings({orchestrator: so.value});
+  const sp = $("#sPar"); sp.value = SETTINGS.max_parallel || 5;
+  sp.onchange = ()=>saveSettings({max_parallel: parseInt(sp.value)||5});
+  const sbg = $("#sBudget"); sbg.value = SETTINGS.budget_calls || 0;
+  sbg.onchange = ()=>saveSettings({budget_calls: Math.max(0, parseInt(sbg.value)||0)});
+  const sc2 = $("#sCap"); sc2.value = SETTINGS.agent_call_cap || 0;
+  sc2.onchange = ()=>saveSettings({agent_call_cap: Math.max(0, parseInt(sc2.value)||0)});
+  const sv = $("#sVerify"); sv.checked = SETTINGS.verify_pass !== false;
+  sv.onchange = ()=>saveSettings({verify_pass: sv.checked});
+  const sr = $("#sReview"); sr.checked = SETTINGS.review_pass !== false;
+  sr.onchange = ()=>saveSettings({review_pass: sr.checked});
+  const sm = $("#sMemory"); sm.checked = SETTINGS.memory_enabled !== false;
+  sm.onchange = ()=>saveSettings({memory_enabled: sm.checked});
+  if(SETTINGS.sandbox_available){
+    $("#sSandboxRow").style.display = "flex";
+    const sb = $("#sSandbox"); sb.checked = !!SETTINGS.sandbox_cli;
+    sb.onchange = ()=>saveSettings({sandbox_cli: sb.checked});
+  }
+  fetch("/api/usage").then(r=>r.json()).then(u=>{
+    $("#sUsage").textContent = u.calls
+      ? `${fmtTok(u.input_tokens)} in · ${fmtTok(u.output_tokens)} out · ${u.calls} calls`
+      : "no agent calls yet";
+  }).catch(()=>{});
+  fetch("/api/scoreboard").then(r=>r.json()).then(d=>{
+    const rows = (d.scoreboard||[]).filter(x=>x.agent!=="echo" || x.calls>0);
+    const fw = d.free_week || {};
+    const fwTok = (fw.free_input_tokens||0) + (fw.free_output_tokens||0);
+    const fwHtml = fwTok > 0
+      ? `<div style="margin-bottom:8px;color:var(--ok)">≈ $${(fw.usd_equiv||0).toFixed(2)} of paid-API work done by free/local models this week (${fmtTok(fwTok)} tokens)</div>`
+      : "";
+    if(!rows.length){ $("#sScore").innerHTML = fwHtml + "no runs yet — the scoreboard fills in as agents work"; return; }
+    $("#sScore").innerHTML = fwHtml + `<table class="score-tbl"><tr><th>agent</th><th>calls</th><th>success</th><th>avg time</th><th>👍/👎</th><th>tokens</th></tr>` +
+      rows.map(x=>`<tr><td>${escapeHtml(x.agent)}</td><td>${x.calls}</td>` +
+        `<td>${x.success_pct==null?"—":x.success_pct+"%"}</td>` +
+        `<td>${x.avg_sec==null?"—":x.avg_sec+"s"}</td>` +
+        `<td>${x.likes||0} / ${x.dislikes||0}</td>` +
+        `<td>${fmtTok(x.input_tokens)} in · ${fmtTok(x.output_tokens)} out</td></tr>`).join("") +
+      `</table>`;
+  }).catch(()=>{});
+  refreshDisk();
+  buildSkills();
+
+  const oc = await ocModels();
+  const sa = $("#sAgents"); sa.innerHTML = "";
+  for(const [n,c] of Object.entries(AGENTS)){
+    const dotCls = c.status==="ready"?"ok":c.status==="degraded"?"warn":"err";
+    const row = document.createElement("div"); row.className = "sagent";
+    let modelCtl = '<span style="flex:1;font-size:11.5px;color:var(--dim)">built-in model</span>';
+    const choices = n==="opencode" ? oc : (c.models||[]);
+    if(choices.length){
+      const opts = choices.map(m=>`<option value="${escapeHtml(m)}" ${m===c.current_model?"selected":""}>${escapeHtml(m)}</option>`).join("");
+      modelCtl = `<select data-agent="${n}">${opts}</select>`;
+    }
+    const tierCtl = `<select class="tier" data-tier="${n}" title="strong: review / finalize / polish work · fast: drafts, brainstorms, simple steps">
+      <option value="strong" ${c.tier==="strong"?"selected":""}>strong</option>
+      <option value="fast" ${c.tier!=="strong"?"selected":""}>fast</option></select>`;
+    row.innerHTML = `<span class="dot ${dotCls}"></span><span class="nm">${n}</span>${modelCtl}${tierCtl}`;
+    const sel = row.querySelector("select[data-agent]");
+    if(sel) sel.onchange = ()=>saveSettings({agent_models:{[n]: sel.value}});
+    const tsel = row.querySelector("select[data-tier]");
+    tsel.onchange = ()=>saveSettings({agent_tiers:{[n]: tsel.value}});
+    sa.appendChild(row);
+  }
+  const spv = $("#sProvs"); spv.innerHTML = "";
+  for(const [pn,p] of Object.entries(PROVIDERS)){
+    const row = document.createElement("div"); row.className = "sprov";
+    const keyRow = p.key_env
+      ? `<div style="display:flex;gap:6px;width:100%;margin-top:6px">
+           <input type="text" placeholder="${p.linked?"overwrite key…":"paste key…"}" data-prov="${pn}">
+           <button class="sbtn" data-save="${pn}">save</button>
+         </div>` : "";
+    const statusTxt = p.keyless ? (p.linked?"running":"not running")
+                                : (p.linked?"linked":"no key");
+    row.innerHTML = `<span class="dot ${p.linked?"ok":"err"}"></span><span class="nm">${pn}</span>
+      <span style="color:${p.linked?"var(--ok)":"var(--dim)"};font-size:11.5px">${statusTxt}</span>
+      ${p.signup?`<a href="${p.signup}" target="_blank">get key</a>`:""}${keyRow}`;
+    row.title = p.note || "";
+    const btn = row.querySelector("[data-save]");
+    if(btn) btn.onclick = async ()=>{
+      const key = row.querySelector("input").value.trim(); if(!key) return;
+      btn.disabled = true;
+      await fetch("/api/keys",{method:"POST",headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({provider: pn, key})});
+      await refreshAgents(); await buildSettings();
+    };
+    spv.appendChild(row);
+  }
+}
+
+/* ---------- skills ---------- */
+async function buildSkills(){
+  let sks = [];
+  try{ sks = (await fetch("/api/skills").then(r=>r.json())).skills || []; }catch(e){}
+  const el = $("#sSkills"); el.innerHTML = "";
+  if(!sks.length){
+    el.innerHTML = '<div style="font-size:12px;color:var(--dim)">No skills found. Drop a folder with a SKILL.md into <code>skills/</code>, install skills for claude/kimi/opencode (they are picked up automatically), or download one below.</div>';
+    return;
+  }
+  sks.forEach((sk, i)=>{
+    const row = document.createElement("div"); row.className = "sagent";
+    row.innerHTML = `<input type="checkbox" ${sk.enabled?"checked":""} style="accent-color:var(--accent)">
+      <span class="nm" style="min-width:0;flex:1">${escapeHtml(sk.name)} <span style="color:var(--dim);font-weight:400">· ${escapeHtml(sk.source)}</span></span>`;
+    row.title = (sk.description || "") + "\n" + sk.path;
+    row.querySelector("input").onchange = ()=>{
+      const en = [...el.querySelectorAll("input")].map((c,j)=>c.checked?sks[j].id:null).filter(x=>x);
+      saveSettings({skills_enabled: en});
+    };
+    el.appendChild(row);
+  });
+}
+async function downloadSkill(){
+  const url = $("#skillUrl").value.trim(); if(!url) return;
+  if(!confirm("Community skills can contain prompt injection or unsafe instructions.\n\nThe skill downloads DISABLED — open it in the list above and read it before enabling. Continue?")) return;
+  const b = $("#skillDl"); b.disabled = true;
+  try{
+    const r = await fetch("/api/skills",{method:"POST",headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({url})}).then(r=>r.json());
+    if(r.ok){ $("#skillUrl").value = ""; await buildSkills(); }
+    else alert(r.error || "download failed");
+  } finally { b.disabled = false; }
+}
+
+/* ---------- onboarding wizard ---------- */
+function onbItems(){
+  const items = [], seenProv = new Set();
+  for(const [n,c] of Object.entries(AGENTS)){           // API providers needing keys
+    if(c.type!=="api") continue;
+    const p = PROVIDERS[c.provider]||{};
+    if(p.keyless || p.linked || seenProv.has(c.provider)) continue;
+    seenProv.add(c.provider);
+    const count = Object.values(AGENTS).filter(a=>a.provider===c.provider).length;
+    items.push({kind:"key", provider:c.provider, agent:n,
+      label:`${c.provider} — ${p.paid ? "API key (paid, cheap)" : "free API key"}`,
+      desc:`One key unlocks ${count} model${count>1?"s":""} (incl. ${n}).`});
+  }
+  for(const [pn,p] of Object.entries(PROVIDERS)){       // offline local servers
+    if(!p.keyless || p.linked) continue;
+    const agent = Object.keys(AGENTS).find(n=>(AGENTS[n].provider||"")===pn) || pn;
+    items.push({kind:"local", provider:pn, agent,
+      label:`${pn} — local server offline`,
+      desc:"No key needed. Start the app on this machine, then test."});
+  }
+  for(const [n,c] of Object.entries(AGENTS)){           // CLI agents not ready
+    if(c.type!=="cli" || n==="echo" || c.status==="ready") continue;
+    if(c.status==="not-installed")
+      items.push({kind:"install", agent:n, label:`${n} — not installed`,
+        desc:c.install||"Install its CLI; WolfPack detects it on the next check."});
+    else
+      items.push({kind:"login", agent:n, label:`${n} — needs sign-in`,
+        desc:"Open its terminal, sign in there (e.g. /login), come back and test."});
+  }
+  return items;
+}
+function onbSay(msg, ok){
+  const el = $("#onbSay");
+  el.textContent = msg||""; el.style.color = ok ? "var(--ok)" : "var(--err)";
+}
+async function onbTest(agent, row){
+  onbSay(`Testing ${agent}…`, true);
+  const r = await fetch("/api/test",{method:"POST",headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({agent})}).then(r=>r.json());
+  if(r.ok){
+    row.classList.add("done");
+    row.querySelector(".t").innerHTML = `✓ ${escapeHtml(agent)} linked`;
+    row.querySelector(".acts").remove();
+    const inp = row.querySelector("input"); if(inp) inp.remove();
+    onbSay(`${agent} is ready.`, true);
+    await refreshAgents();
+  } else onbSay(`${agent} not working yet: ${(r.output||"").slice(0,160)}`, false);
+}
+function openOnb(){
+  const items = onbItems(), list = $("#onbList");
+  if(!items.length){
+    list.innerHTML = `<div class="step-line" style="color:var(--ok)">✓ Everything is linked — you're all set.</div>`;
+  } else {
+    list.innerHTML = "";
+    let lastKind = "";
+    const SEC = {key:"Cloud models", local:"Local model servers",
+                 login:"Agent sign-ins", install:"Not installed yet"};
+    for(const it of items){
+      if(it.kind!==lastKind){
+        lastKind = it.kind;
+        list.insertAdjacentHTML("beforeend", `<div class="onb-sec">${SEC[it.kind]}</div>`);
+      }
+      const row = document.createElement("div");
+      row.className = "onb-row";
+      let inner = `<div class="t">${escapeHtml(it.label)}</div><div class="d">${escapeHtml(it.desc)}</div>`;
+      if(it.kind==="key"){
+        const p = PROVIDERS[it.provider]||{};
+        inner += `<input type="text" placeholder="paste ${escapeHtml(it.provider)} key here" spellcheck="false">
+          <div class="acts">
+            <button class="mbtn save" data-act="savekey">Save & test</button>
+            ${p.signup?`<button class="mbtn test" data-act="getkey">${p.paid?"get a key":"get a free key"}</button>`:""}
+            <button class="mbtn test" data-act="skip">skip</button>
+          </div>`;
+      } else if(it.kind==="local"){
+        inner += `<div class="acts"><button class="mbtn save" data-act="test">Test</button>
+          <button class="mbtn test" data-act="skip">skip</button></div>`;
+      } else if(it.kind==="login"){
+        inner += `<div class="acts">
+          <button class="mbtn save" data-act="loginwin">Open sign-in terminal</button>
+          <button class="mbtn test" data-act="test">Test</button>
+          <button class="mbtn test" data-act="skip">skip</button></div>`;
+      } else {
+        inner += `<div class="acts"><button class="mbtn test" data-act="skip">skip</button></div>`;
+      }
+      row.innerHTML = inner;
+      row.onclick = async e=>{
+        const act = e.target.dataset && e.target.dataset.act;
+        if(!act) return;
+        if(act==="skip"){ row.remove(); return; }
+        if(act==="getkey"){ window.open((PROVIDERS[it.provider]||{}).signup, "_blank"); return; }
+        if(act==="savekey"){
+          const key = row.querySelector("input").value.trim();
+          if(!key){ onbSay("paste a key first", false); return; }
+          const r = await fetch("/api/keys",{method:"POST",headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({provider: it.provider, key})}).then(r=>r.json());
+          if(r.error){ onbSay("Save failed: "+r.error, false); return; }
+          await onbTest(it.agent, row); return;
+        }
+        if(act==="loginwin"){
+          const r = await fetch("/api/cli-login",{method:"POST",headers:{"Content-Type":"application/json"},
+            body: JSON.stringify({agent: it.agent})}).then(r=>r.json());
+          onbSay(r.ok ? `Terminal opened — sign in, then come back and press Test.`
+                      : (r.error||"could not open a terminal"), !!r.ok);
+          return;
+        }
+        if(act==="test") await onbTest(it.agent, row);
+      };
+      list.appendChild(row);
+    }
+  }
+  $("#onbSay").textContent = "";
+  $("#onbBg").style.display = "flex";
+}
+async function closeOnb(markDone){
+  $("#onbBg").style.display = "none";
+  if(markDone){
+    SETTINGS.onboarding_done = true;
+    await fetch("/api/settings",{method:"POST",headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({onboarding_done: true})});
+  }
+}
+
+/* ---------- panels ---------- */
+const PANELS = ["settings","schedPanel","mailPanel"];
+function openPanel(id){
+  for(const p of PANELS) document.getElementById(p).classList.toggle("open", p===id && !document.getElementById(p).classList.contains("open"));
+  if(id==="schedPanel" && document.getElementById(id).classList.contains("open")) refreshSchedules();
+  if(id==="mailPanel" && document.getElementById(id).classList.contains("open")) renderMailbox();
+}
+
+/* ---------- wire up ---------- */
+async function init(){
+  const [a, p, s] = await Promise.all([
+    fetch("/api/agents").then(r=>r.json()),
+    fetch("/api/providers").then(r=>r.json()),
+    fetch("/api/settings").then(r=>r.json()),
+  ]);
+  AGENTS = a.agents; ORCH = a.orchestrator; PROVIDERS = p.providers || {}; SETTINGS = s;
+  if(s.version) $("#verTag").textContent = " · v" + s.version;
+  buildComposer();
+  buildSettings();
+  buildSchedForm();
+  wireDropzone();
+  $("#runBtn").onclick = addTask;
+  $("#pipeAdd").onclick = addPipeStep;
+  $("#presetSave").onclick = savePreset;
+  buildPresets();
+  $("#task").addEventListener("keydown", e=>{ if((e.ctrlKey||e.metaKey) && e.key==="Enter") addTask(); });
+  $("#gearBtn").onclick = ()=>openPanel("settings");
+  $("#clockBtn").onclick = ()=>openPanel("schedPanel");
+  $("#mailBtn").onclick = ()=>openPanel("mailPanel");
+  $("#sClose").onclick = ()=>openPanel("settings");
+  // collapsible settings sections — remember which ones were open
+  const secState = getPrefs().sections || {};
+  document.querySelectorAll("#settings details.sec").forEach(d=>{
+    const key = d.dataset.sec;
+    if(key in secState) d.open = !!secState[key];
+    d.addEventListener("toggle", ()=>{
+      const p = getPrefs(); p.sections = p.sections || {};
+      p.sections[key] = d.open;
+      localStorage.setItem(PREFS_KEY, JSON.stringify(p));
+    });
+  });
+  $("#scClose").onclick = ()=>openPanel("schedPanel");
+  $("#mbClose").onclick = ()=>openPanel("mailPanel");
+  // click anywhere outside a panel closes it
+  document.addEventListener("click", e=>{
+    if(e.target.closest(".bbtn") || e.target.closest(".modal-bg")) return;
+    for(const id of PANELS){
+      const p = document.getElementById(id);
+      if(p.classList.contains("open") && !p.contains(e.target)) p.classList.remove("open");
+    }
+  });
+  $("#mClose").onclick = ()=>{ $("#modalBg").style.display = "none"; };
+  $("#modalBg").onclick = e=>{ if(e.target.id==="modalBg") $("#modalBg").style.display = "none"; };
+  $("#onbBg").onclick = e=>{ if(e.target.id==="onbBg") closeOnb(false); };
+  $("#mSave").onclick = saveKey;
+  $("#mTest").onclick = testAgentConn;
+  $("#mTestCli").onclick = testAgentConn;
+  $("#memOpen").onclick = ()=>{
+    fetch("/api/open",{method:"POST",headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({what:"memory"})}).then(r=>r.json())
+      .then(r=>{ if(!r.ok && r.error) alert(r.error); });
+  };
+  $("#scBrowse").onclick = browseFolder;
+  $("#schedCreate").onclick = createSchedule;
+  $("#scDelivery").onchange = e=>{
+    $("#scWebhookRow").style.display = e.target.value==="webhook" ? "block" : "none";
+  };
+  $("#skillDl").onclick = downloadSkill;
+  $("#skillScan").onclick = buildSkills;
+  $("#onbClose").onclick = ()=>closeOnb(false);
+  $("#onbDone").onclick = ()=>closeOnb(true);
+  $("#onbSkipAll").onclick = ()=>closeOnb(true);
+  $("#onbOpen").onclick = ()=>{ openPanel("settings"); openOnb(); };
+  $("#packExport").onclick = ()=>{ window.location.href = "/api/export"; };
+  $("#packImport").onclick = ()=>$("#packFile").click();
+  $("#pruneBtn").onclick = async ()=>{
+    const days = parseInt($("#pruneDays").value)||30;
+    if(!confirm(`Delete all finished runs older than ${days} day${days===1?"":"s"}? This cannot be undone.`)) return;
+    const r = await fetch("/api/prune",{method:"POST",headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({days})}).then(r=>r.json());
+    if(r.ok){ alert(`Pruned ${r.deleted} run${r.deleted===1?"":"s"} — freed ${fmtBytes(r.freed_bytes)}.`); refreshDisk(); refreshRuns(); }
+    else alert(r.error || "prune failed");
+  };
+  $("#packFile").onchange = async e=>{
+    const f = e.target.files[0]; if(!f) return;
+    const b64 = await new Promise(res=>{ const r=new FileReader(); r.onload=()=>res(r.result.split(",")[1]); r.readAsDataURL(f); });
+    try{
+      const r = await fetch("/api/import",{method:"POST",headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({data_b64: b64})}).then(r=>r.json());
+      if(r.ok){
+        alert(`✓ Pack imported: ${r.restored.length} file(s) restored` +
+              (r.skipped && r.skipped.length ? `\nskipped (never imported): ${r.skipped.join(", ")}` : "") +
+              `\n\nPrevious versions were backed up as .bak files. Reloading…`);
+        location.reload();
+      } else alert("Import failed: " + (r.error || "unknown error"));
+    }catch(err){ alert("Import failed: " + err); }
+    e.target.value = "";
+  };
+  $("#contBtn").onclick = ()=>{
+    if(!currentRun) return;
+    // continue from the newest turn of the current thread
+    continueFrom = CHAIN_ORDER.length ? CHAIN_ORDER[CHAIN_ORDER.length-1] : currentRun;
+    $("#contBar").style.display = "block";
+    $("#contBar").innerHTML = `↻ continuing this conversation — all prior results and files carry over <span class="x" id="contX">✕ cancel</span>`;
+    $("#contX").onclick = ()=>{ continueFrom = null; $("#contBar").style.display = "none"; };
+    $("#task").focus();
+  };
+  await refreshRuns();
+  await pollMailbox();
+  setInterval(refreshRuns, 4000);
+  setInterval(pollMailbox, 5000);
+  setInterval(refreshAgents, 60000);  // pick up availability re-probes live
+  if(!SETTINGS.onboarding_done){          // first-open setup wizard
+    if(onbItems().length) openOnb();
+    else closeOnb(true);                  // nothing to link — don't nag again
+  }
+}
+init();
+</script>
+</body>
+</html>

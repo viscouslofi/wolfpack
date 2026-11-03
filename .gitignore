@@ -1,0 +1,37 @@
+# secrets and local state — never commit these
+keys.toml
+runs/
+uploads/
+mailbox.jsonl
+.harness/
+__pycache__/
+node_modules/
+*.log
+_check.js
+.srv.pid
+
+# dev-only test harness
+test_adapter.py
+
+# user data — belongs to the local machine, not the repo
+settings.toml
+schedules.toml
+presets.json
+usage.jsonl
+memory/
+scheduled-output/
+
+# agent-written during testing, not shipped
+skills/list-code-review-benefits/
+
+# dev screenshots (screenshot-main.png and screenshot-run.png ship in the README)
+screenshot-council.png
+screenshot-waiting.png
+council-scorecard.png
+
+# dev docs / research notes (kept out of the release zip too)
+COMPETITOR-ANALYSIS.md
+IDEAS-ROUND-2.md
+REVIEW.md
+wolfpack-competitive-research.md
+wolfpack-pattern-costs.png

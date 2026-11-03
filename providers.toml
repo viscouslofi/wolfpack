@@ -1,0 +1,76 @@
+# Cloud providers with free model tiers, all speaking the OpenAI-compatible
+# /chat/completions protocol. Add your keys in keys.toml (never committed) or
+# as environment variables.
+
+[openrouter]
+base_url = "https://openrouter.ai/api/v1"
+key_env  = "OPENROUTER_API_KEY"
+models_url = "https://openrouter.ai/api/v1/models"   # supports live free-model discovery
+signup   = "https://openrouter.ai/keys"
+note     = "One key unlocks dozens of :free models. Best single source."
+
+[moonshot]
+base_url = "https://api.moonshot.ai/v1"
+key_env  = "MOONSHOT_API_KEY"
+models_url = "https://api.moonshot.ai/v1/models"
+signup   = "https://platform.moonshot.ai/console/api-keys"
+paid     = true
+note     = "Kimi K3 / K2 models (paid — K3 unlocks after a $1 top-up)."
+
+[groq]
+base_url = "https://api.groq.com/openai/v1"
+key_env  = "GROQ_API_KEY"
+models_url = "https://api.groq.com/openai/v1/models"
+signup   = "https://console.groq.com/keys"
+note     = "Very fast free tier: Llama, Mixtral, Gemma."
+
+[gemini]
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+key_env  = "GEMINI_API_KEY"
+signup   = "https://aistudio.google.com/apikey"
+note     = "Gemini free tier via AI Studio."
+
+[mistral]
+base_url = "https://api.mistral.ai/v1"
+key_env  = "MISTRAL_API_KEY"
+signup   = "https://console.mistral.ai/"
+note     = "Free experiment tier (opt-in)."
+
+[cerebras]
+base_url = "https://api.cerebras.ai/v1"
+key_env  = "CEREBRAS_API_KEY"
+models_url = "https://api.cerebras.ai/v1/models"
+signup   = "https://cloud.cerebras.ai/"
+note     = "Free tier, extremely fast Llama inference."
+
+[github]
+base_url = "https://models.github.ai/inference"
+key_env  = "GITHUB_TOKEN"
+signup   = "https://github.com/settings/tokens"
+note     = "Free with any GitHub account: GPT-4o, Llama, Phi, Mistral."
+
+[deepseek]
+base_url = "https://api.deepseek.com/v1"
+key_env  = "DEEPSEEK_API_KEY"
+models_url = "https://api.deepseek.com/v1/models"
+signup   = "https://platform.deepseek.com/api_keys"
+paid     = true
+note     = "DeepSeek V3 / R1 — not free, but extremely cheap. Excellent reasoning and coding."
+
+[ollama]
+base_url = "http://localhost:11434/v1"
+key_env  = ""            # no key needed
+models_url = "http://localhost:11434/v1/models"
+note     = "Local models via Ollama — unlimited and private. WolfPack auto-starts the server if needed."
+
+[bionic]
+base_url = "http://localhost:1235/v1"
+key_env  = ""            # no key needed
+models_url = "http://localhost:1235/v1/models"
+note     = "Local models via Bionic — unlimited and private. Starts with the Bionic app."
+
+[lmstudio]
+base_url = "http://localhost:1234/v1"
+key_env  = ""            # no key needed
+models_url = "http://localhost:1234/v1/models"
+note     = "Local models via LM Studio — enable the local server in LM Studio's developer tab."

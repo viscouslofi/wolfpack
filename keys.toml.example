@@ -1,0 +1,13 @@
+# Copy this file to keys.toml and paste the keys you have.
+# keys.toml is git-ignored and never leaves your machine.
+# You only need keys for the providers you want to use.
+# Alternatively set the equivalent environment variables (see providers.toml).
+
+[keys]
+openrouter = ""    # https://openrouter.ai/keys
+groq       = ""    # https://console.groq.com/keys
+gemini     = ""    # https://aistudio.google.com/apikey
+mistral    = ""    # https://console.mistral.ai/
+cerebras   = ""    # https://cloud.cerebras.ai/
+github     = ""    # https://github.com/settings/tokens
+deepseek   = ""    # https://platform.deepseek.com/api_keys  (cheap, not free)

@@ -1,0 +1,9 @@
+{
+  "name": "wolfpack",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WolfPack \u2014 orchestrator-led multi-agent harness with live web UI",
+  "scripts": {
+    "dev": "python server.py"
+  }
+}

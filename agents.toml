@@ -1,0 +1,269 @@
+# Agent registry. Each agent is either:
+#   type = "cli"  - a local command-line agent (codex, kimi, opencode, ...)
+#   type = "api"  - a cloud model behind an OpenAI-compatible endpoint
+# Add agents by copying a block. UI and planner pick agents up automatically.
+#
+# tier = "strong" | "fast"  — the planner sends review/finalize/polish work to
+# strong agents only; fast agents get drafts, ideas, and simple steps.
+# Override any agent's tier in Settings (stored in settings.toml).
+
+orchestrator = "codex"
+
+# ---------------- CLI agents ----------------
+
+[agents.codex]
+type = "cli"
+tier = "strong"
+description = "OpenAI Codex CLI. Strong at coding, refactoring, shell tasks."
+strengths = ["coding", "debugging", "refactoring", "shell", "general"]
+command = 'codex exec --skip-git-repo-check -s workspace-write --cd "{workdir}" -'
+stdin = true
+shell = true
+timeout_sec = 900
+status = "ready"
+
+[agents.opencode]
+type = "cli"
+tier = "strong"
+description = "OpenCode CLI with free OpenCode Zen models — no key needed. Pick the model in Settings."
+strengths = ["coding", "editing", "general"]
+command = 'opencode run -m "{model}" "{prompt}"'
+resume_command = 'opencode run -c -m "{model}" "{prompt}"'
+default_model = "opencode/glm-5.3-flash-free"
+stdin = false
+shell = true
+timeout_sec = 900
+status = "ready"
+[agents.opencode.env]
+XDG_DATA_HOME = ".harness/xdg-data"
+
+[agents.claude]
+type = "cli"
+tier = "strong"
+description = "Claude Code CLI (Anthropic). Agentic coding, reasoning, refactoring — full file access."
+strengths = ["coding", "reasoning", "debugging", "refactoring", "general"]
+command = 'claude -p --dangerously-skip-permissions < "{promptfile}"'
+resume_command = 'claude -p -c --dangerously-skip-permissions < "{promptfile}"'
+promptfile = true
+shell = true
+timeout_sec = 900
+status = "ready"
+install = "npm install -g @anthropic-ai/claude-code — then run claude once to sign in"
+
+[agents.echo]
+type = "echo"
+tier = "fast"
+description = "Built-in dry-run agent. Costs nothing; for testing orchestration."
+strengths = ["testing"]
+status = "ready"
+timeout_sec = 10
+
+# ---------------- Free cloud models (type = "api") ----------------
+# These need a provider key in keys.toml (see keys.toml.example).
+# `models` are tried in order until one answers (rate-limit failover).
+
+[agents.kimi]
+type = "api"
+tier = "strong"
+provider = "moonshot"
+models = ["kimi-k3", "kimi-k2.6", "kimi-k2.7-code"]
+description = "Kimi K3 via Moonshot API. Long-context reading, research, writing, coding."
+strengths = ["research", "long-context", "writing", "analysis", "coding"]
+status = "needs-key"
+timeout_sec = 300
+
+[agents.or-auto]
+type = "api"
+tier = "fast"
+provider = "openrouter"
+models = ["openrouter/free"]
+description = "OpenRouter auto-router: picks any currently-available free model."
+strengths = ["general", "writing", "analysis"]
+status = "needs-key"
+timeout_sec = 240
+
+[agents.nemotron-free]
+type = "api"
+tier = "strong"
+provider = "openrouter"
+models = ["nvidia/nemotron-3-ultra-550b-a55b:free", "nvidia/nemotron-3.5-lightning:free", "nvidia/nemotron-3.5-super-vl:free"]
+description = "NVIDIA Nemotron 3 (free tier via OpenRouter). Strong reasoning + coding."
+strengths = ["reasoning", "coding", "analysis", "general"]
+status = "needs-key"
+timeout_sec = 240
+
+[agents.nemotron-nano-free]
+type = "api"
+tier = "fast"
+provider = "openrouter"
+models = ["nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free"]
+description = "NVIDIA Nemotron 3 Nano (free tier via OpenRouter). Compact reasoning model."
+strengths = ["reasoning", "analysis", "general"]
+status = "needs-key"
+timeout_sec = 240
+
+[agents.north-code-free]
+type = "api"
+tier = "fast"
+provider = "openrouter"
+models = ["cohere/north-mini-code:free"]
+description = "Cohere North Mini Code (free tier via OpenRouter). Code-focused."
+strengths = ["coding", "editing", "analysis"]
+status = "needs-key"
+timeout_sec = 240
+
+[agents.gemma-free]
+type = "api"
+tier = "fast"
+provider = "openrouter"
+models = ["google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free"]
+description = "Google Gemma 4 (free tier via OpenRouter). Solid generalist."
+strengths = ["general", "writing", "research"]
+status = "needs-key"
+timeout_sec = 180
+
+[agents.llama-free]
+type = "api"
+tier = "strong"
+provider = "groq"
+models = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
+description = "Llama 3.3 on Groq (free tier). Very fast generalist."
+strengths = ["general", "writing", "analysis"]
+status = "needs-key"
+timeout_sec = 120
+
+[agents.gemini-free]
+type = "api"
+tier = "strong"
+provider = "gemini"
+models = ["gemini-2.5-flash", "gemini-2.0-flash"]
+description = "Gemini Flash (free tier via AI Studio). Fast, huge context."
+strengths = ["general", "long-context", "research", "writing"]
+status = "needs-key"
+timeout_sec = 180
+
+[agents.deepseek]
+type = "api"
+tier = "strong"
+provider = "deepseek"
+models = ["deepseek-chat", "deepseek-reasoner"]
+description = "DeepSeek V3 / R1 API. Top-tier reasoning and coding at rock-bottom prices."
+strengths = ["reasoning", "coding", "math", "analysis", "general"]
+status = "needs-key"
+timeout_sec = 300
+
+[agents.mistral-free]
+type = "api"
+tier = "fast"
+provider = "mistral"
+models = ["mistral-small-latest", "open-mistral-nemo"]
+description = "Mistral Small / Nemo (free experiment tier)."
+strengths = ["general", "coding", "writing"]
+status = "needs-key"
+timeout_sec = 120
+
+[agents.github-gpt4o]
+type = "api"
+tier = "fast"
+provider = "github"
+models = ["gpt-4o-mini", "gpt-4o"]
+description = "GPT-4o family via GitHub Models (free with a GitHub token)."
+strengths = ["general", "coding", "writing", "analysis"]
+status = "needs-key"
+timeout_sec = 180
+
+# ---------------- Local models (type = "api", keyless providers) ----------------
+# No keys needed — they talk to servers running on your own machine.
+
+[agents.bionic-qwen35b]
+type = "api"
+tier = "strong"
+provider = "bionic"
+models = ["qwen3.6-35b-a3b-uncensored-hauhaucs-aggressive", "qwen3.5-9b-uncensored-hauhaucs-aggressive"]
+description = "Qwen 3.6 35B running locally in Bionic. Biggest local brain — unlimited and private."
+strengths = ["reasoning", "coding", "analysis", "general"]
+status = "ready"
+timeout_sec = 600
+
+[agents.bionic-gemma26b]
+type = "api"
+tier = "strong"
+provider = "bionic"
+models = ["gemma4-26b-a4b-qat-uncensored-hauhaucs-balanced-mtp", "gemma4-12b-qat-uncensored-hauhaucs-balanced"]
+description = "Gemma 4 26B running locally in Bionic. Strong local generalist."
+strengths = ["general", "writing", "analysis", "research"]
+status = "ready"
+timeout_sec = 600
+
+[agents.bionic-coder]
+type = "api"
+tier = "fast"
+provider = "bionic"
+models = ["gemma-4-12b-coder-fable5-composer2.5-v1"]
+description = "Gemma 12B coder running locally in Bionic. Tuned for code."
+strengths = ["coding", "editing", "debugging"]
+status = "ready"
+timeout_sec = 600
+
+[agents.bonsai-27b]
+type = "api"
+tier = "fast"
+provider = "bionic"
+models = ["prism-ml/bonsai-27b", "ternary-bonsai-2-27b"]
+description = "Bonsai 27B running locally in Bionic. General writing and analysis."
+strengths = ["general", "writing", "analysis"]
+status = "ready"
+timeout_sec = 600
+
+[agents.ollama-llama8b]
+type = "api"
+tier = "fast"
+provider = "ollama"
+models = ["local-llama-8b"]
+description = "Local Llama 8B via Ollama. Quick, private, unlimited."
+strengths = ["general", "writing"]
+status = "ready"
+timeout_sec = 300
+
+[agents.ollama-mistral9b]
+type = "api"
+tier = "fast"
+provider = "ollama"
+models = ["local-mistral-9b"]
+description = "Local Mistral 9B via Ollama. Vision-capable (can read images)."
+strengths = ["general", "vision", "analysis"]
+status = "ready"
+timeout_sec = 300
+
+# ---- dynamic local agents: no fixed model list — they use whatever the
+# ---- local server is currently serving (pick a specific one in Settings).
+
+[agents.bionic-auto]
+type = "api"
+tier = "fast"
+provider = "bionic"
+models = []
+description = "Whatever Bionic is serving right now — pick a specific model in Settings."
+strengths = ["general", "coding", "writing", "analysis"]
+status = "ready"
+timeout_sec = 600
+
+[agents.ollama-auto]
+type = "api"
+tier = "fast"
+provider = "ollama"
+models = []
+description = "Whatever Ollama is serving right now — pick a specific model in Settings."
+strengths = ["general", "writing", "analysis"]
+status = "ready"
+timeout_sec = 300
+
+[agents.lmstudio-local]
+type = "api"
+tier = "fast"
+provider = "lmstudio"
+models = []
+description = "Whatever LM Studio is serving right now — start its local server, then pick a model in Settings."
+strengths = ["general", "coding", "writing", "analysis"]
+status = "ready"
+timeout_sec = 600
